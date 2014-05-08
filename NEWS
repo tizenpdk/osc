@@ -1,0 +1,964 @@
+0.139
+  - support generic emulator virtualization
+  - added "--host" argument to "osc build" (used to perform the build on a remote host)
+  - "search --maintained" is obsolete. Abort on usage.
+  - "maintainer --user" support to search for all official maintained instance for given user or group
+  - added support to abort a commit after displaying a default commit message in $EDITOR. As a result
+    other commands like "submitrequest" will also ask if the user wants to proceed if the default
+    comment/message wasn't changed.
+
+0.138
+  - add support to remove repositories recursively (mostly only usefull for admins)
+  - submitrequest: old not anymore used maintenance code got removed. It is possible now
+                   to create one request to submit all changed packages of an project in
+                   one request. Just run "osc sr" in the checked out project directory.
+  - disable keyring usage by default. print warning about misconfigured keyrings.
+  - prdiff: new command to diff entire projects
+
+0.137
+  - support single binary download via getbinaries command
+  - support to set the bugowner
+#
+# Features which requires OBS 2.4
+#
+  - offer to send set_bugowner request if target is not writeable
+  - support delete requests for repositories.
+  - support default maintainer/bugowner search based on binary package names
+  - support to lookup --all definitions of maintainers of bugowners. Either
+    for showing or setting them.
+  - buildinfo --debug  option for verbose output of dependency calculation
+
+0.136
+  - prefer TLS v1.1 or v1.2 if available
+  - declined is considered to be an open state (that is "osc rq list" also shows declined requests)
+  - added support to move files across packages via "osc mv" (fixes issue #10)
+  - various bugfixes:
+    * show source package name when running "osc se --binary ..."
+    * fixed encoding detection
+    * fixed build result listing for arch packages (affects "osc build")
+    * "osc ci --noservice" works also for "external"/flat packages
+
+0.135.1
+  - do not forward requests to packages which do link anyway to original request target
+
+0.135
+  - request accept is offering now to forward submit request if it is a devel area like webui does
+  - support archlinux builds (requires OBS 2.4)
+  - support maintenancerequest from local checkout
+  - bugfixes for review handling, result watching, gnome-keyring
+
+0.134
+  - patchinfo call can work without checked out copy now
+  - use qemu as fallback for building not directly supported architectures
+  - "results --watch" option to watch build results until they finished building
+  - setlinkrev and linkpac ---current is setting vrev. this requires OBS 2.1.17 or 2.3
+  - security fix for buildlog function, terminal control characters are limited now.
+#
+# Features which requires OBS 2.3
+#
+  - support dryrun of branching to preview the expected result. "osc sm" is doing this now by default.
+  - maintenance requests accept package lists as source and target incidents to be merged in
+  - add "setincident" command to "request" to re-direct a maintenance request
+  - ask user to create "maintenance incident" request when submit request is failing at release project
+  - "osc my patchinfos" is showing patchinfos where any open bug is assigned to user
+  - "osc my" or "osc my work" is including assigned patchinfos
+  - "osc branch --maintenance" is creating setups for maintenance
+  - "osc unlock" command to unlock packages or projects
+
+0.133
+  - add --meta option also to "list", "cat" and "less" commands
+  - project checkout is skipping packages linking to project local packages by default
+  - add --keep-link option to copypac command
+  - source validators are not called by default anymore:
+    * They can get used via source services now
+    * Allows different validations based on the code streams
+#
+# Features which requires OBS 2.3
+#
+  - support source services using OBS project or package name
+  - support updateing _patchinfo file with new issues just by calling "osc patchinfo" again
+  - branch --add-repositories can be used to add repos from source project to target project
+  - branch --extend-package-names can be used to do mbranch like branch of a single package
+  - branch --new-package can be used to do branch from a not yet existing package (to define later submit target)
+  - show declined requests which created by user
+
+0.132
+  - rdelete and undelete command requesting now a comment
+  - add 'requestbugownership' command for setting the bugowner via request
+#
+# Features which requires OBS 2.3
+#
+  - new command "createincident" to create maintenance incidents without a request
+  - support to create hidden project on "branch" and "createincident" commands
+  - osc waits and updates package after checkin when a source service is used
+  - support for the new service file mode for "update" and "checkout" command when
+    downloading server side generated files
+  - integration for local source services, they will replace the source_validator mechanism
+
+0.131
+  - new command 'develproject' to print the devel project from the package meta.
+  - add blt and rblt commands, aka "buildlogtail" and "remotebuildlogtail" to show
+    just the end of a build log (for getting the fail reason faster).
+    CHANGE: the --start parameter is now called --offset
+  - add "createrequest -a add_group" option to create a group request
+  - add "createrequest -a add_me" shortcut
+  - add "less" command, doing the same as "osc cat" but with pager
+  - fallback to unexpanded diff mode on "osc diff" on merge error.
+  - support viewing the commit history of deleted packages
+  - show review states on "review list"
+  - new source service commands "localrun" and "disabledrun" to generate files without _service: prefix
+  - add "request supersede" and "review supersede" to supersede with existing request
+  - make it possible to run single source services, even when not specified in _service file.
+    (For example for doing a version update without creating a _service file: osc service lr update_source)
+  - protect rebuild and abortbuild commands with required "--all" option to mass failures by accident (similar to wipebinaries)
+  - "review accept/decline" is trying to change all reviews of a requests, if a specific one is not specified by user
+#
+# Features which requires OBS 2.3
+#
+  - "my requests" is doing faster and complete server side lookup now if available
+  - "review" command has been extended to handle reviews by project or by package maintainers
+  - support for new source service modes: disabled, trylocal and localonly
+  - support project wide source services
+  - support for armv7hl architecuture. used to denote armv7 + hardfloat binaries
+  - add force option to accept requests in review state.
+  - add "maintenancerequest" command to request a maintenance incident from maintenance team
+  - add "releaserequest" command run a maintenance update release process (for maintenance team only)
+  - allow to force the storage of project meta data (to ignore depending repositories for example)
+  - "my requests" is showing requests with open reviews also now
+
+0.130
+  - new "revert" command to restore the original working copy file (without
+    downloading it)
+  - rewrote "diff" logic
+  - added new "--http-full-debug" option, "--http-debug" filters the
+    "Authentication" and "Set-Cookie" header
+  - added new "--disabled-cpio-bulk-download" option: disable downloading
+    packages as cpio archive from api
+  - added new "repairwc" command which tries to repair an inconsistent working
+    copy
+  - workaround for broken urllib2 in python 2.6.5: wrong credentials lead to an
+    infinite recursion
+  - support --interactive-review option when running "osc rq list <project>"
+  - improved "osc rq show <id> --interactive-review"
+  - do_config: added new options --stdin, --prompt, --no-echo:
+    --stdin: read value from stdin
+    --prompt: prompt for a value
+    --no-echo: prompt for a value but don't echo entered characters (for
+               instance to enter a passwd)
+  - added template support for a submitrequest accept/decline message
+  - lots of internal rewrites (new working copy handling etc.)
+  - support added for osc search 'perl(Foo::Bar)' 
+  - New "service" command to run source services locally or trigger a re-run on the server.
+  - setlinkrev is setting now the revision to xsrcmd5 by default to avoid later breakage on indirect links by default.
+
+  NOTE:
+   Due to the rewrite of the working copy handling osc might fail with the
+   following error:
+     Your working copy '.' is in an inconsistent state.
+     Please run 'osc repairwc .' (Note this might _remove_
+     files from the .osc/ dir). Please check the state
+     of the working copy afterwards (via 'osc status .')
+   Simply run "osc repairwc" which might fetch files from the api
+   or delete some files from the storedir (.osc/). It won't touch
+   locally modified files. For more information see section
+   "WORKING COPY INCONSISTENT" in the README.
+
+#
+# Feature which requires OBS 2.1
+#
+  - support reliable diff for an accepted request
+
+0.129
+  - "dists" command to show the configured default base repos from the server.
+  - "review list" command to list open review requests
+  - "review add" command to add another reviewer for a request (either user or group)
+  - add "buildinfo --prefer-pkgs <dir>" option
+  - add "prjresults --hide-disabled" option to hide packages which are disabled/excluded
+    in all repos and repos which have only disabled/excluded packages
+  - harmonize "api"'s options with curl's options
+  - use builtin signature check by default (instead of verifying the signature with "rpm -K...")
+  - add "status --show-excluded"  to show all files (except the store dir)
+  - new "osc reqmaintainership" command which is a shortcut for
+    "osc creq -a add_role USER maintainer PROJECT PACKAGE"
+#
+# Feature which requires OBS 2.1
+#
+  - add "osc aggregate --nosources" option
+  - add "request clone" command to clone all packages from a given request
+  - fixed references into en.opensuse.org to honor the new Wiki structure
+  - add cross build targets mips and mipsel for QEMU Usermode. needs also build update.
+
+0.128
+  - better default commands selection for editor/pager
+  - support "osc rq reopen" to set a request in new state again
+  - "osc repos" and "wipebinaries" is checking for local project now
+  - "osc getbinaries" works in project dir now
+  - support added for SPARC builds
+  - support build --oldpackages
+  - introduced the "trusted projects"
+  - Fixes for default editor, api check on deleterequest call, tempfile leaks, getbinaries source package handling, results command
+#
+# Feature which require either OBS 2.1 or 2.0.4
+#
+  - add osc signkey --extend for extending the expiration date of the gpg public key
+
+0.127
+  - add size limit mode, files can be ignored on checkout or update given a certain size limit.
+  - --csv/--format options for results command - using format user can explicitly specify what he wants print
+  - osc branch reads project/package in package directory
+  - fix creation of package link, when target project has the package via linked project
+  - add "osc rq approvenew $PROJECT" command to show and accept all request in new state. 
+    This makes sense esp. for projects which work with default reviewers before.
+  - support external source validator scripts before commiting
+  - support request creation with multiple actions
+#
+# Features which require OBS 2.0
+#
+  - support "osc add http://...", this uses obs source service for downloading a file and verify it via sha256 verifier service
+  - add support for CBpreinstall/CBinstall
+  - support branch --force to override target
+  - support for "unresolvable" state of OBS 2.0
+  - support undelete of project or package
+  - support for package meta data checkout
+
+0.126
+ - added VM autosetup to osc. This requires appropriate OBS version and build script version.
+ - enhanced QEMU cross build support with 'armv4l' 'armv5el' 'armv6el' 'armv7el' 'armv8el' 'mips' 'mips64' 'ppc' 'ppc64' 'sh4' arch strings now supported on x86 host
+ - suggest git, svn, ... if indicated, after oscerr.NoWorkingCopy
+ - "osc cat" & "osc ls" now auto-expands through link.
+ - fixed "osc add" after "osc delete".
+ - fix "osc patchinfo" command (crashed before)
+ - fixed SSL proxy support
+ - fixed meta attribute create and set calls
+ - osc remotebuildlog supports a buildlogurl
+ - Allow --prefer-pkgs to parse repodata
+ - new "osc build --no-service" option to skip source service update
+ - fix linktobranch apiurl usage
+ - "maintained package" search is telling relevant projects now
+   * requires OBS 1.7.2 or 2.0
+ - added "osc chroot" command
+ - fixed #547005 ("osc co could show download progress")
+ - added "--interactive" option to "osc request"
+ - store commit message so it doesn't get lost on failure
+ - added "--cpio-bulk-download" and "--download-api-only" options to "osc build"
+ - added "osc localbuildlog" command
+ - added "--build-uid uid:gid|caller" option to "osc build" to specify abuild id in chroot
+ - verify files using rpm bindings and keys supplied by buildservice
+ - added "--exclude-target-project <prj>" option to "osc rq list"
+ - added "--message" option to "osc branch"
+ - added "osc config" command to set/get/delete a config option
+ - added "--binary" and "--baseproject" options to "osc search"
+ - added "-o/--offline" and "-l/--preload" options to osc build
+   * osc build -l standard i586 foo.spec (to cache all dependencies)
+   * osc build -o standard i586 foo.spec (to build without contacting the api)
+
+0.125
+ - add "osc pull" command to fetch and merge changes in the link target
+ - new proxy support via SSL
+ - when a broken link is encountered automatically switch to last working
+   version. use 'osc pull' to repair the broken link.
+ - osc my request is showing now also requests from other people target to
+   myself
+
+ #
+ # Features which require OBS 1.7
+ #
+ - new config option 'submitrequest_on_accept_action' to specify a default action
+   if a submitrequest has been accepted
+ - add "osc linktobranch" command to convert a classic link to a branch package
+ - show scheduler state for each repo with "results" and "prjresults"
+
+0.124
+ - added 'osc bugowner' as a more intelligent version of 'osc maintainer -B'
+ - added option '-B' to osc maintainer, prints bugowner OR maintainer.
+ - added 'osc req help' as convenience alias to 'osc help req'.
+ - 'osc in' to be done. Its usage just prints a suggested zypper command line.
+ - give better hint how to use osc vc without network connectivity.
+ - added printing of cache statistices to osc build
+ - support http proxies when using python 2.6 or newer (#551004)
+ - partial fix for checkout problems (bnc#551147)
+ - fixed #477690 ("osc fetching binaries really slow")
+ - osc jobhistory accepts also "prj [pkg] repo arch" now
+ - osc buildinfo accepts now also "prj pkg repo arch [spec/dsc]"
+ - osc buildconfig accepts now also "prj pkg repo arch"
+ - fixed warning messages regarding SSL certificate on some plattforms (Fedora)
+ - support submit requests on project level, osc is checking which packages
+   have changed and submits only the changed after asking back.
+ - show worker/id on jobhistory and make it faster by adding a default limit of 20
+ - add "osc build --root" option to allow to specify build root directory
+ - add "osc build --release" option to allow to specify a package release number
+ - added osc mv command which can rename file and leave them under version control
+ - added new commands "dependson" and "whatdependson" to find out which packages get
+   triggered before checkin/request accept.
+ - add new "osc build --linksource" option, speeds up esp. image building a lot
+ - add "osc triggerreason" command to show detail reason, why a package got triggered for build
+ - Incompatible changes:
+   * osc se now prints Project Package, instead of Package Project
+     for easier copy&paste.
+   * osc se uses exact search by default. Use osc se -s for
+     substring search
+   * osc repourls neither needs nor accepts a path to a package
+     working dir anymore
+   * osc repo neither needs nor accepts a path to a package or
+     project working dir anymore
+ #
+ # Features which require OBS 1.7
+ #
+ - search: allow to limit results via existing attibutes
+ - added "osc meta attribute" for basic attribute creation, deletion, showing and value setting
+ - implement "osc mbranch" call to create projects with multiple source package (instances)
+ - new "osc patchinfo" command: basic patchinfo generation and modification support
+ - add support for _patchinfo package submissions in "osc sr" on project level
+ - support review handling of requests (new "osc review accept/decline $REQUEST_ID" command
+
+0.123
+ - IMPORTANT: ssl certificate checks are actually performed now to
+   prevent man-in-the-middle-attacks. python-m2crypto is needed to
+   make this work. Certificate checks can be turned off per server
+   via 'sslcertck = 0' in .oscrc.
+ - 'osc list' option -D now only limits non-'new' requests. In state 'new' all are shown.
+ - suggest 'osc list' --bugowner option. Not implemented.
+ - added 'osc rq help' as convenience alias to 'osc help rq'.
+ - 'osc in' to be done. Its usage just prints a suggested zypper command line.
+ - Incompatible change: osc se now prints Project Package, instead of Package Project
+   for easier copy&paste.
+ - fix checkout of packages, which contain not committed files (but uploaded)
+ - add signing key management command (osc signkey)
+   * shows public part of project key
+   * allows (re)creation of a project key
+   * allows deletion of a project key
+ - support 100% offline build when using "osc build --noinit ..."
+   -> buildinfo gets cached in local directory as .buildinfo.xml
+
+0.122
+ - added missing code for 'osc sr -l [ID]'
+ - allow osc cat with one parameter, if it is a url.
+ - make osc getpac really get the package (instead of branch only)!
+ - expanded several tabs to spaces.
+ - added default project to new getpac and bco subcommand. .oscrc:getpac_default_project = OpenSUSE:Factory
+   (not added to branch subcommand, to not interfere with its syntax.)
+ - add support for generic python-keyring lib, supports KWallet, Gnome keyring, MacOS and Windows.
+ - make buildhist command usable without checked out package
+ - rename old "platform/s" names to "repository/ies" (internal cleanup only)
+ - fixed osc diff -c N, it failed with int and string concatenation
+ - made osc diff and rdiff more similar: added -p, -c to rdiff, removed -u from rdiff.
+   made -u default for both, renamed --pretty to --plain as it is the opposite of -u
+ #
+ # Features which require OBS 1.7
+ #
+ - option to download server side generated _service:* files on update
+ - support for running source services locally. Happens by default on source update
+   and build.
+ - support modification flages on creation of submit request
+   (for auto update or clean up packages or to avoid it, when submit request got accepted)
+ - show request ids from package source logs
+ - added support to require local packages which don't exist in the obs for a local build. This
+   fixes #377021, #481193
+
+0.121.1
+ - fixed creation of new ~/.oscrc files
+ - fixed "osc my request" command
+
+0.121
+ - fixed osc rq list -U to not look into the local dir
+ - added osc my ... pkg/prj/req  shorthand commands
+ - add 'osc se' alias for 'osc search -e'
+ - add -b -m -M to 'osc search'
+ - hack for _help_preprocess_cmd_option_list to survive setup.py build
+ - made rresults an alias for results. python decorators are a strange concept...
+ - asserting that ~/.oscrc remains mode 0600
+ - no more plain text passwords in ~/.oscrc, we store now as bz2+base64
+ - added verbosity control -v -q. To be used in guess_proj_pack()
+ - added 'll' and 'ls -l' as shorthand to 'list -v'
+ - started to change to explicit dual license GPLv2 or GPLv3 to conform to Novell policy.
+ - added revision parameter to show_upstream_srcmd5(), so that it can be used in do_cat later.
+ - allowed both integer and srcmd5 revisions in meta_get_filelist()
+ - added 'lL', 'LL': allowed -e and -v together in do_list(). Was an internal error before.
+ - added cat -e, to cat a file through a link.
+   'cat -e -r 3' expands through the third revision of the _link.
+ - added subcmd bco as alias for branch -c
+ - added primitive experimental support for .oscrc:checkout_no_colon = 1
+ - suggest using svn when .svn found.
+ - alias submitpac submitrequest
+ - osc bco now continues to checkout after branch target exists error.
+ - added .oscrc:plaintext_passwd=1 for backwards compatibility
+ - moved core.py:exclude_stuff to .oscrc:exclude_glob and expand it to catch *.orig etc.
+ - added osc rq list -a; a shorthand for enumerating all states
+ - osc rq list -D nnn limit to requests nnn days old.
+ - osc sr --diff option added
+ - improved help texts with repairlink to point to osc resolved.
+ - improved passx code when creating oscrc.
+ - osc metafromspec allows editing before send
+ - allow handling of other roles than "maintainer" with maintainer command
+   (-r role)
+ - fix and improve request list and show output
+ - new osc rremove command for remote source files removal
+ - first part of support to handle _service\* files correctly
+ - osc commit asks if some file has a '?' status (can be skipped by --force option)
+ - fixed request list for multiple states
+ - new option --overlay
+ - new option --rsync-src / --rsync-dest
+
+0.120:
+ - support "setlinkrev" for whole projects
+ - add "setlinkrev --unset" for removing revision references
+ - add "osc request list -t <type>" to list only submit, delete or develchange requests
+ - add shell completion scripts
+ - fix support of listing requests with multiple actions
+ - "osc maintainer" is following to the development project / package now
+ - "osc maintainer" list maintainer and bugowner roles now
+
+0.119:
+- Support new request types
+  - "submitreq" command has a new syntax (incompatible !)
+  - new "deleterequest" command
+  - new "changedevelrequest" command
+  - new "request" command for showing/modifing requests
+  - Multiple actions in one request is not yet supported by osc
+  - The new commands require an OBS 1.7 server, submitreq is still working with
+    older servers.
+- support of added .changes in commit message template
+- make submit request listing fast by server side filtering
+- allow pulling of conflicting changes via "osc repairlink"
+- delete commands consolidated:
+  * deleteprj and deletepac are obsolete.
+  * delete and rdelete take over
+- enable package tracking by default
+- bugfix: templates in edit commit message causes an empty commit logs
+- osc submitrequest consumes DESTPRJ [DESTPKG] arguments only
+- osc build now also tested on native arm targets where uname -m reports a string like armv{4l,5el,6l,7el,7l}
+- osc rlog now works with srcmd5 also
+- plugins now should be placed in /usr/lib/osc-plugins to match FHS (the /var path is still supported though)
+- osc now includes automatically generated man page
+- osc can now store credentials in Gnome keyring if it is available
+- new support for osc linkpac to specify cicount attribute
+- new log/rlog output formats (CSV and XML)
+- new jobhistory/buildhistory/search output format (CSV)
+- new option to fetch buildlogs starting at given offset
+- new option for copypac
+  * -r to specify source revision
+  * -m to specify a comment (and send default comment if not specified)
+- new option to results(r), and rresults:
+  * -r|--repo to specify a repository(repositories)
+  * -a|--arch to specify a architexure(s)
+  * --xml for xml output (makes results_meta obsolete)
+- request list -M shows open SRs created by the user.
+- Fixed build support for images, only refered packages from buildinfo get used. (#485047)
+- "req" command got renamed to "api" to avoid clash with "request" command
+- osc build has a smarter default platform selection - it checks the
+  availibility config value, 'standard' and 'opensuse_Factory' in platforms list and in case
+  of fail it uses the last entry from that list
+- new osc linkpac -f to allow to override existing _link files
+- rename "rebuildpac" to "rebuild", but keep "rebuildpac" as alias
+
+0.117:
+- support checkout of single package via "osc co PACKAGE" when local dir is project
+- allow to specify target project and package on osc branch (requires server version 1.6)
+- add option to automatic checkout a branched package
+- support "osc getbinaries" in checkout packages
+- new vc command for editing the changes files (requires build.rpm 2009.04.17 or newest)
+- new repairlink command for repairing a broken source link (requires server version 1.6)
+- '-b|--brief' option for osc submitreq show subcommand
+- use "latest" commited revision on checkout, not "upload" (#441783)
+- '-e|--just-open' option for vc command and used /usr/lib/build/vc as an executable
+
+0.116:
+- support listings of older revisions with "osc ls -R"
+- add --current parameter for linkpac to use current revision of source package fixed.
+- add osc setlinkrev to add or update revision number in links easily
+- fix streaming of binary files via "cat" (#493325)
+
+0.115:
+- optional transfer of devel project during copy_pac and link_pac is fixing
+  opertation with remote build service instance
+- "osc ci" fails uploading large files to Provo BuildService
+- fixed support for accessing download repositories (worked only for download.o.o so far)
+
+0.114:
+- the .oscrc config handling has been cleaned up:
+   * use "apiurl" for everything now (== <protocol>://<host>)
+   * added aliases support for [apiurl] sections in the ~/.oscrc.
+     Example:
+     [http(s)://foobar]
+     ...
+     aliases = foo, bar
+     => "osc -A foo <cmd>" will do the same as "osc -A http(s)://foobar ls"
+   * "scheme" and "apisrv" are deprecated and will produce a warning
+   * when writing a new ~/.oscrc, store the apiurl in the conffile (bnc#478054)
+   * fixed bug that made osc ask for credentials when -A was used (bnc#478054)
+   * fixed crash upon password entry (first startup) (bnc#478052)
+- osc build:
+   * make product builds work
+   * speed up by using a cookie when fetching the binaries (bnc#477690)
+   * support for VM (kvm or xen) builds
+   * obsolete the need to configure download server, get it from the build
+     service instance instead.
+   * be a bit more verbose if the linked package isn't expanded (bnc#470948)
+- osc branch:
+   * --develproject option fixed (the API calls it 'ignoredevel' instead of 'nodevelproject')
+   * --revision option added
+- osc jobhistory: new command to see build job history of a project or a package
+- osc results/rresults: option -l, --last-build added (show last build results)
+- osc linkpac: fix failure when -A<url> is used (bnc#479156)
+- osc commit: don't scare users if they want to commit a nonexistent file (bnc#469167)
+- osc diff: bugfix to make --pretty option work
+- 11.1 added to the osc project template
+
+
+0.113:
+- osc diff -rX:Y: the default is to return an unified diff (to get a pretty
+  diff use the --pretty option)
+- osc rdiff: the default is to return a pretty diff (to get an unified diff use the --unified option)
+- osc sr show --diff: the default is to return a pretty diff (to get an unified diff use the --unified option)
+- osc getbinaries: optionally also download source rpms
+- osc importsrcpkg: set the url in the package meta (bnc#458083)
+- osc wipebinaries: added --expansion option
+- added support for format strings like "%(project)s" and "%(package)s" which
+  can be used in the build-root config option.  For example one could use a new
+  chroot for each package.
+- osc updatepacmetafromspec: fix failure if %description is starting with newline (bnc#462869)
+- catch OSError exceptions which might be raised by the subprocess module
+- don't use a hardcoded path for the rpm binary otherwise it fails on
+  distributions like debian
+- osc meta: be more verbose in case of failure (bnc#459292)
+- osc mkpac: add info how to enable the package tracking feature (bnc#459288)
+
+0.112:
+important bugfix:
+- osc deletepac: prevent recursive deletion of a whole project [bnc#458535]
+- osc build: support more options: --icecream, --ccache, --with, --without
+- osc build: --keep-pkgs also saves the src.rpm now
+- osc build: small fix in debuginfo handling
+- osc build: new armv7el arch for all binaries for up to ARMv7 EABI with VFP
+
+
+0.111:
+- fix accidental truncation of .oscrc to 0 bytes
+- fix osc's ignorance of the revision option (-r) for expanded links
+- osc build: handle kiwi builds (local image build)
+- osc build: cross build support
+- osc build: support for ARMv5 EABI little endian arch added
+- osc build: fixed detection of the build type (rpm or deb), after change in the buildinfo
+- osc build: build debuginfo packages if enabled in the project/package meta (this partly fixes #421390)
+
+
+0.110:
+
+- osc build: no working copy needed anymore when building a local package [bnc#431434]
+- osc checkout: when checking out a project, and a linkerror occurs for one of
+  the packages, do a checkout in unexpanded form and continue checking out the
+  rest of the project [bnc#428303]
+- osc deletepac, osc branch: allow slash notation for the project/package arguments
+- fix deprecation warnings on Factory (which uses Python 2.6)
+- fix to avoid (internal) stale Package objects [bnc#436932]
+
+
+0.109:
+
+- osc getbinaries: new command to download binaries directly from the api server
+- osc rlog: new command to show commit logs of remote packages
+- osc build: --debug option to the build script which will take care of creating debuginfo packages
+- add link to plugin API to osc help output
+- avoid a hard dependency on the rpm-python bindings.
+- fixed depracation warnings with Python 2.6 [bnc#426612]
+- streaming of unfinished logfiles fixed
+- fixed regression of .oscrc template [bnc#427118]
+Changes were from Marcus_H, poeml, dmueller, tpatzig.
+
+
+0.108:
+
+- osc submitreq: has two aliases now: "osc sr" and "osc submitrequest"
+- osc sr create: prompt to revoke existing requests
+- osc sr revoke: new command for to get rid of requests to projects one can't write to
+- osc sr list: allow showing requests in a state other than "new"
+- osc sr show: show the current state's comment
+- osc sr log: new command to show the history of a given id
+- osc sr: enable requests for submitting new packages
+- osc build: implement --no-checks
+- osc build: be less strict on the arguments, and guess what's needed. For instance:
+  * osc build PLATFORM ARCH BUILD_DESCR
+  * osc build PLATFORM (ARCH = hostarch, BUILD_DESCR guessed)
+  * osc build ARCH (PLATFORM = build_platform (config option), BUILD_DESCR guessed)
+  * osc build BUILD_DESCR (PLATFORM = build_platform (config option), ARCH = hostarch)
+  * osc build (PLATFORM = build_platform (config option), ARCH = hostarch, BUILD_DESCR guessed)
+- osc build: download after the target architecture check
+- osc addremove: bugfixes, --recursive option
+- osc init: added support to initialize a project dir
+- osc metafromspec: new alias for 'updatepacmetafromspec' which is hard to remember
+- osc updatepacmetafromspec: also update URL
+- osc buildlog: do not download entire log to memory
+- new http_headers option to add arbitrary headers to HTTP requests
+- bugfix to make osc work on Gentoo
+- enhance/update the package and project template
+- .netrc heritage from previous commandline client has been removed
+- osc asks for password now, when used with -A
+
+
+0.107:
+
+- osc build: the --extra-pkgs option is now a configurable setting in .oscrc.
+  Default is "extra-pkgs = vim gdb strace"
+- .oscrc: make tilde expansion work on the packagecachedir setting
+- osc update / checkout: don't check out a working copy, or update an existing
+  one, when a source link cannot be applied [bnc#409373]
+
+
+0.106:
+
+- osc rdiff / osc submitreq show: diff the _expanded_ sources [bnc#408267]
+- osc submitreq list: show author's name
+- osc submitreq: shortcut alias 'sr' added
+
+
+0.105:
+
+- osc submitreq list:
+   - can now be called without parameters, applying to the working copy then.
+   - calling it in a project directory is also possible now.
+   - output was improved. Newest requests are listed first.
+- osc submitreq delete: a new action which has been added
+- osc submitreq list/create: use api URL from the working copy
+- osc meta: editing returns the API error description instead of a plain HTTP
+  error if available
+- osc copypac: use the correct userid when copying to another api host
+- osc importsrcpkg: disable signature check when getting data from a rpm file
+- osc linkpac: --revision option added.
+- osc search: added option -i|--involved, to show in which projects/packages
+  a developer is involved
+- osc build: double check the buildinfo for local builds. Refuse to build for
+  architectures that are not supported by the host
+- osc buildhist: change the output into a format which better matches actual
+  RPM filenames.
+- osc commit: give commit message tempfiles a ".diff" suffix, so syntax
+  highlighting automatically works in capable editors
+- other bug fixes:
+  - don't expand/unexpand if the working copy has local modifications - this is
+    an ugly workaround for #399247 but this way the working copy isn't screwed up
+  - work around a bug which causes packages to be cached locally under the
+    "None" architecture (and therefore causing issues when building for more
+    than one architecture via osc build).
+  - don't create _linkerror files in working copies
+  - better error handling (mostly printing more details) in a number of cases
+  - show error messages from the API also for type 500 errors
+
+
+0.104:
+- osc update: after update, reset the revision when updating multiple package.
+  Fixes "404: Not Found" type errors when updating an entire project. [bnc#399177]
+- more/better error messages in some error scenarios
+- osc wipebinaries: add missing check for commandline arguments, which could
+  cause a PACKAGE argument to be ignored
+- fixed make_diff in order to avoid errors when committing a new package
+  (created with mkpac)
+
+
+0.103:
+
+- osc submitreq create: simplify by make osc guess needed parameters, if
+  there is a working copy and it is a source link.
+- osc submitreq create: don't stop on packages that have a devel project
+  defined, if the submit actually comes from that project.
+- osc checkout: checkout of source links is now done in expanded form per
+  default. The new option --unexpand-link can be used to get the raw link file.
+- show the API's error message for HTTP 403 (Forbidden) replies.
+
+
+0.102:
+
+- osc branch: Show the actually created branch project name, not
+  a guessed one.  Add --nodevelproject.
+- osc submitreq: look up the develproject of the target, and if
+  there is one, don't create the request, unless forced with
+  --nodevelproject.
+- make the global -d option work better under certain circumstances
+
+0.101:
+
+- add osc branch command, using the branch API call to branch a package to
+  home:poeml:branches:PRJ/PKG
+- osc commit now opens $EDITOR for commit message
+- improved error handling, when API returns HTTP status code 400 (bad request)
+- osc status: implement -q/--quiet switch
+- osc info: slightly more verbose
+- osc deletepac: allow deletion of multiple packages at once
+- make "osc meta prjconf <project> -e" work again (probably caused by r3702)
+
+
+0.100:
+
+- improved error handling (babysitter.py wrapper, oscerr.py exception classes)
+  Tracebacks are mostly suppressed now. To enable them, use
+       -t, --traceback    print call trace in case of errors
+  or set traceback=1 in .oscrc.
+- other new global options for debugging:
+       --debugger         jump into the debugger before executing anything
+       --post-mortem      jump into the debugger in case of errors
+       -d, --debug        print info useful for debugging
+- make way for more seamless osc version updates (the .osc directory in working copies
+  will have its own versioning in the future)
+- osc rprjresults and osc rresults: new commands to show remote build results
+- osc build: added --baselibs and --jobs options
+- osc copypac: added --keep-maintainers switch
+- osc maintainer: new -D/--devel-project switch
+- BUILD_DIST environment variable will be ignored (bnc#359846)
+  The following environment variables can still be used:
+  * OSC_SU_WRAPPER overrides the setting of su-wrapper.
+  * OSC_BUILD_ROOT overrides the setting of build-root.
+  * OSC_PACKAGECACHEDIR overrides the setting of packagecachedir.
+
+
+0.99+patches (interim releases, including Wed Apr  2 16:36:40 CEST 2008)
+
+- new command submitreq, to handle "submit requests" (next generation build
+  service feature). See http://en.opensuse.org/openSUSE:Build_Service_Collaboration 
+- new link handling:
+  add support for handling linked packages in expanded form. They
+  can be checked out, updated (expanding or unexpanding them),
+  and built locally.
+  Newly introduced options are:
+  * osc checkout: --expand-link
+  * osc update: --expand-link and --unexpand-link
+- new feature: package tracking. It's not enabled by default and
+   needs to be switched on with do_package_tracking=1 in .oscrc.
+   before using. See
+   http://lists.opensuse.org/opensuse-buildservice/2008-03/msg00114.html
+- prjresults: add --csv option
+- req: add option -a / --add-header to inject arbitrary request headers
+- addremove (and others): ignore _all_ dot files (the buildservice doesn't
+  handle them)
+- copypac: do a (quicker) server-side copy by default, when source and target
+  are on the same buildservice instance.
+- build:
+  - add --debuginfo
+  - add --no-verify
+  - add --local-package to build a package which doesn't exist on the server
+  - add --alternative-project to specify a project, if the current one doesn't
+    exist on the server
+  - use api url from .osc/_apiurl [#355144]
+- new command remotebuildlog
+- diff: fix #347377 (diffing too many files)
+- checkout: check for project existance beforehand
+- rdiff: new command for server-side diffs between arbitrary packages
+- cat: new command to print a file on the standard output
+- diff: reworked functionality to show newly added files, and behaving more
+  like svn when doing diff against a certain revision
+- bugfix in {link,aggregate,copy}_pac (<person> elements)
+- checkout an empty project instead of doing nothing
+- fix prjresults for newly added packages, where build status is missing
+
+
+0.99:
+
+- aggregatepac: new command, similar to linkpac. Patch from Pavol Rusnak.
+- wipebinaries: added --build-failed and --broken [#335498]
+- deleteprj: enabled this command, as the backend now supports it
+- maintainer:
+  - added --verbose option
+  - added functionality to add/remove users from a project/package
+- print the list of URL to try, when in HTTP debug mode
+- build: allow to use lbuild, a compatible replacement for build
+- do not create dirs for non-existing packages during checkout [#259711]
+
+
+0.98:
+
+- new maintainer command, to list the maintainers of a project or package
+- ls: add -b option to list binaries
+- make osc library simpler to use from external scripts
+- new importfromsrcpkg command, to import a package src.rpm from file or URL
+- new req command, to issue arbitrary requests to the API
+- initial support for commit messages (ci -m/-F)
+- implementing a log command to review the commit log
+- renamed previous "log" command to "buildlog" (short: bl)
+- new meta command, replacing editmeta, editprj, createprj,
+  editpac, createpac, edituser, pattern
+- added search support
+- show helpful xml error messages if broken metadata is uploaded
+
+
+0.97:
+- added initial revision handling:
+    - extended "osc co prj pac" to checkout a specific revision of pac
+    - extended "osc up" to update to a specific revision
+    - extended "osc diff" to diff the working copy against a
+      specific revision on the server. NOTE: comparing two
+      server-side revisions (osc diff -r 11:12) is currently
+      not supported!
+- load subcommands from /var/lib/osc-plugins/ or ~/.osc-plugins/
+- updatepacmetafromspec scans for spec files automatically. Added --specfile option to updatepacmetafromspec.
+- wipebinaries: allow to wipe all binaries of packages for which the build is disabled
+- addremove: ignore foo.rXX, foo.mine for files which are in 'C' state
+- ls: add verbose option to print extra information for packages
+- for all server-side commands, allow arguments "foo/bar" instead of "foo bar"
+- new wipebinaries and abortbuild commands, by courtesy of Marcus Huewe
+- improved metadata error condition handling (thanks to Marcus Huewe)
+- build: add --userootforbuild option
+- build: implement -x/--extra-pkgs option (passed to backend and included in buildinfo result)
+- make filling out of username in templates work again
+- don't try to delete projects, as long it is not implemented in the backend
+- use new API route for downloading binaries also in configured URLs
+- make deletepac work again
+
+
+0.96:
+- following suggestions by Christian Boltz and Michal Marek, osc now memorizes
+  where a working copy was checked out from, saving the api server url to
+  .osc/_apiurl.
+- implement 'info' subcommand
+- use new api routes in all places
+- buildhistory works again
+- copypac: implement package copy from one buildservice instance to another
+  (--to-apiurl option)
+- the results subcommand now handles multiple <working copy> arguments
+- build: implement --prefer-pkgs and --keep-pkgs option
+- applied patch from Michael Marek, fixing all places where error
+  messages were printed to stdout instead of stderr. [#239404]
+- osc is now easier to work with when using alternative API servers. The
+  configured server can be overriden with -A <url> on the commandline.
+  "apisrv" in the config takes a URL now, so the variable "scheme" which was
+  needed in addition before becomes obsolete. For backward compatibility, a
+  hostname (and scheme variable) are accepted like before. Likewise, the auth
+  sections in the config take a URL now, or a hostname:port to keep old config
+  working. HTTP or HTTPS scheme is determined from the URL. Credentials must be
+  configured in .oscrc.
+- build: use actual api server in urllist for downloading, instead of hardcoded
+  api.opensuse.org [#265211].
+
+
+0.95:
+- rewrite the internal HTTP handling
+  - save and reuse HTTP server cookies, which can speed up HTTP requests up about
+    5 times in an iChain setup
+  - adding http_GET/POST/PUT/DELETE() functions, which dispatch to
+    http_request(), and use them everywhere
+  - removing othermethods.py
+  - keeping urlopen(), in case it is used from externally, but have it print out
+    a "depracated" message
+  - finally, global option -H enables HTTP traffic debugging
+- implement "rebuild all failed packages", via --failed option in rebuildpac
+  subcommand
+- status -v shows all files, including unmodified ones
+- suppress the legend in prjresults by default (show with -l)
+- --version shows the program version number
+- fix the commit subcommand's argument handling. The following works correctly
+  now: osc ci ../test/onlyinwc `pwd` fstab ../test/f2
+- fix the download progress meter to work with small terminals [#266989]
+- update: when updating multiple packages, print each package name
+- make 'results' subcommand many times faster, by making only a single request
+- prjresults: sort package names
+- build: run with --norootforbuild, thereby defaulting to build as abuild user
+- build: fix (harmless) errors showing up in the build log during buildsystem
+  setup, by using the new <bdep> preinstall and runscripts attributes
+- update: when updating, don't delete files with local modifications
+- let the diff subcommand return 1 if differences were found
+- fix important bug, which could lead to overwriting local modifications when
+  upstream changes are merged in
+- if a merge fails, the store copy must be updated neverthelesss
+- fix testsuite and add testcase for successful merging
+- sort output of 'status' (unknown files first, filenames alphabetically)
+- core: added class "metadata" (merge from Susannes /branches/froh/reponator/)
+- added command alias 'stat' for 'status', like in svn
+- improved documentation/examples (Lars + Susanne)
+- print usage info if 'co' is called without arguments
+
+0.9:
+- "iChain-ready" (works with API server now using iChain authentication)
+- add runtime check for build.rpm version, so the rpm package dependency is
+  no longer required
+- add 'edituser' command for editing the metadata of a user account. It tries
+  to create a user if it doesn't exist yet. A new command 'usermeta' replaces
+  'id' respectively 'userid'.
+- rewrite configuration handling. Now the API server can be set in .oscrc
+- ignore '.gitignore', '.pc', '*~' (now using filename matching [#208969]
+- fix 'status' to work with project directories as arguments
+- fix 'status <filename>'
+- 'rebuildpac' now accepts additional repo and arch argument. Note:
+  the syntax has changed.
+- add 'prjresults' command to display aggregated build status over
+  an entire project
+- add 'deleteprj' command (the API server doesn't seem to support
+  it yet, though)
+- change 'buildhistory' to display human-readable text
+- add 'copypac' subcommand, to copy a complete package to a new package, possibly cross-project
+- don't die if user tries to 'add' a file which is already versioned
+- don't die if 'addremove' encounters directories
+- urlopen(): for server return code 500, print out the reply body
+
+0.8:
+- build: use configuration from *local* specfile (e.g. BuildRequires)
+- build: let envvars OSC_SU_WRAPPER and OSC_BUILD_ROOT override config
+- build: allow 'dynamical' build-root setting by using %(repo)s and %(arch)s
+- add 'createpac/editpac' and 'createprj/editprj' subcommands which
+  are similar to 'editmeta' but should be more logical to find
+- added 'deletepac' subcommand
+- added 'buildhistory' subcommand (formerly 'history'). This only
+  gives out raw xml at this time
+- added 'linkpac' subcommand
+- added ".git" to the excluded files
+- adapt to API changes
+- fixed issue with uploading files when an intercepting web proxy was
+  in between osc and the api server
+- fixed creation of new packages/projects
+
+0.7:
+- initial support for local builds (subcommand 'build')
+- better error handling
+- new subcommands buildconfig, buildinfo, repos
+- remove requirement on pyxml package
+- editmeta: add examples for package/project templates
+- add support for streaming the build log (thanks to Christoph Thiel)
+- add 'rebuildpac' subcommand
+- add 'repourls' subcommand
+- don't diff binary files
+- don't try to merge binary files
+- add a preliminary 'updatepacmetafromspec' subcommand, which takes package
+  metadata from a specfile
+- fix profiling wrapper
+- set User-agent
+- bugfixes:
+  - fix handling of filenames with '+' signs
+  - make 'resolved' more robust
+  - fix merge on 'update' if called from another directory
+  - display reason for build status is 'broken'
+  - handle HTTP error codes != 404 when reading metadata in edit_meta()
+  - handle 'project not found' error in show_project_meta()
+
+
+0.6:
+- diff bugfix: sometimes displayed diff against obsolete files
+- update bugfixes: fix update of working copy when adding a file from upstream
+  which is missing locally; fix update in directory with unmodified files:
+  don't try to merge if upstream file wasn't changed at all
+- add: make it faster
+
+
+0.5:
+- help :-)
+- add 'editmeta' subcommand: Edit project/package meta information, creating
+  new project or package if it doesn't exist. The user interface is $EDITOR
+- fix status letter for files merged on update (in analogy to svn , it is
+  either G or U)
+- if an old _files listing without any metadata is found, don't bother the user
+  with it
+- make all subcommands properly importable functions
+- bug in 'resolved' command fixed, which wouldn't clear the conflict state of a file
+
+
+0.4:
+- allow 'up' inside a project directory (will automatically pull in all new
+  packages). (For past checkouts, you may need to put the project name into
+  $prjdir/.osc/_project yourself).
+- checkout: preserve mtimes
+- add diff3 merge support. Locally modified files are merged with upstream changes
+  if possible, and go into Conflict state if that fails.
+- add 'resolved' command to be used after manual merging.
+
+
+0.3:
+- use the new file metadata, which provides checksum, size and mtime
+- faster 'status', 'update', 'diff'
+- improve argument handling, now e.g. 'osc up *' is possible
+- on first usage, ask for username and password and store them in .oscrc
+  (.netrc can still be used)
+
