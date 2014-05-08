@@ -8,7 +8,6 @@ Group:          Development/Tools/Other
 License:        GPL v2 or later
 Url:            http://www.gitorious.org/opensuse/osc
 Source:         osc-%{version}.tar.gz
-Patch0: 	retry-for-empty-xml-response.patch
 BuildArch:      noarch
 
 BuildRequires:  python-devel
@@ -40,7 +39,6 @@ introduction.
 
 %prep
 %setup -q
-%patch0 -p1
 
 %build
 CFLAGS="%{optflags}" \
