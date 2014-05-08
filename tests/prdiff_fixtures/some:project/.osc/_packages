@@ -1,4 +1,0 @@
-<project name="some:project">
-  <package name="common-one" state=" " />
-  <package name="common-two" state=" " />
-</project>
