@@ -1,0 +1,20 @@
+Source: osc
+Section: devel
+Priority: extra
+Maintainer: Adrian Schroeter <adrian@suse.de>
+Build-Depends: debhelper (>= 4.0.0), dpatch, python-urlgrabber
+Standards-Version: 3.8.3
+Homepage: http://en.opensuse.org/Build_Service/CLI
+
+Package: osc
+Section: devel
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python (>= 2.5), python-urlgrabber, python-rpm, python-m2crypto (>= 0.20)
+Suggests: python-gnomekeyring, gnome-keyring, build (> 2010.04.24)
+Description: openSUSE (buildsystem) commander
+ Commandline client for the openSUSE Build Service, which allows to access
+ repositories in the openSUSE Build Service in similar way as Subversion
+ repositories.
+ .
+ The openSUSE Build Service is service that allows developers to  package
+ software for all major Linux distributions.

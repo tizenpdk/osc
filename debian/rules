@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+build: build-stamp
+build-stamp: 
+	dh_testdir
+	touch build-stamp
+
+override_dh_installchangelogs:
+	dh_installchangelogs NEWS
+
+override_dh_auto_install:
+	dh_auto_install
+	# Give the binary sane name
+	# Not needed
+	rm $(CURDIR)/debian/osc/usr/bin/osc_hotshot.py
