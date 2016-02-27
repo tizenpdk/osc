@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from tempfile import mkdtemp
 import os
 from shutil import rmtree
@@ -28,8 +30,8 @@ class Checker:
         for key in keys:
             try:
                 self.readkey(key)
-            except KeyError, e:
-                print e
+            except KeyError as e:
+                print(e)
 
         if not len(self.imported):
             raise KeyError('', "no key imported")
@@ -88,10 +90,15 @@ class Checker:
 
     def check(self, pkg):
         # avoid errors on non rpm
-        if pkg[-4:] != '.rpm': return
-        fd = os.open(pkg, os.O_RDONLY)
-        hdr = self.ts.hdrFromFdno(fd)
-        os.close(fd)
+        if pkg[-4:] != '.rpm':
+            return
+        fd = None
+        try:
+            fd = os.open(pkg, os.O_RDONLY)
+            hdr = self.ts.hdrFromFdno(fd)
+        finally:
+            if fd is not None:
+                os.close(fd)
 
 if __name__ == "__main__":
     import sys
@@ -108,7 +115,7 @@ if __name__ == "__main__":
         checker.readkeys(keyfiles)
         for pkg in pkgs:
             checker.check(pkg)
-    except Exception, e:
+    except Exception as e:
         checker.cleanup()
         raise e
 

@@ -13,6 +13,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
+from __future__ import print_function
+
 import mmap
 import os
 import stat
@@ -62,7 +64,7 @@ class CpioHdr:
         self.namesize = namesize
         # != 0 indicates CRC format (which we do not support atm)
         self.checksum = checksum
-        for k,v in self.__dict__.iteritems():
+        for k, v in self.__dict__.items():
             self.__dict__[k] = int(v, 16)
         self.filename = filename
         # data starts at dataoff and ends at dataoff+filesize
@@ -80,7 +82,7 @@ class CpioRead:
 
     # supported formats - use name -> mgc mapping to increase readabilty
     sfmt = {
-             'newascii' : '070701',
+             'newascii': '070701',
            }
 
     # header format
@@ -150,9 +152,9 @@ class CpioRead:
                     self.__file = mmap.mmap(self.__file.fileno(), os.path.getsize(self.__file.name), prot = mmap.PROT_READ)
                 else:
                     self.__file = mmap.mmap(self.__file.fileno(), os.path.getsize(self.__file.name))
-            except EnvironmentError, e:
+            except EnvironmentError as e:
                 if e.errno == 19 or ( hasattr(e, 'winerror') and e.winerror == 5 ):
-                    print >>sys.stderr, 'cannot use mmap to read the file, failing back to default'
+                    print('cannot use mmap to read the file, failing back to default', file=sys.stderr)
                 else:
                     raise e
         else:

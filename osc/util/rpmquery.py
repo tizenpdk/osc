@@ -1,7 +1,10 @@
+
+from __future__ import print_function
+
 import os
 import re
 import struct
-import packagequery
+from . import packagequery
 
 class RpmError(packagequery.PackageError):
     pass
@@ -66,7 +69,8 @@ class RpmQuery(packagequery.PackageQuery):
         self.filename_suffix = 'rpm'
         self.header = None
 
-    def read(self, all_tags = False, *extra_tags):
+    def read(self, all_tags=False, self_provides=True, *extra_tags):
+        # self_provides is unused because a rpm always has a self provides
         self.__read_lead()
         data = self.__file.read(RpmHeaderEntry.ENTRY_SIZE)
         hdrmgc, reserved, il, dl = struct.unpack('!I3i', data)
@@ -236,7 +240,7 @@ class RpmQuery(packagequery.PackageQuery):
             arch = 'src'
         else:
             arch = self.arch()
-        return RpmQuery.filename(self.name(), self.version(), self.release(), arch)
+        return RpmQuery.filename(self.name(), None, self.version(), self.release(), arch)
 
     @staticmethod
     def query(filename):
@@ -294,7 +298,7 @@ class RpmQuery(packagequery.PackageQuery):
         return cmp(ver1, ver2)
 
     @staticmethod
-    def filename(name, version, release, arch):
+    def filename(name, epoch, version, release, arch):
         return '%s-%s-%s.%s.rpm' % (name, version, release, arch)
 
 def unpack_string(data):
@@ -312,13 +316,13 @@ if __name__ == '__main__':
     import sys
     try:
         rpmq = RpmQuery.query(sys.argv[1])
-    except RpmError, e:
-        print e.msg
+    except RpmError as e:
+        print(e.msg)
         sys.exit(2)
-    print rpmq.name(), rpmq.version(), rpmq.release(), rpmq.arch(), rpmq.url()
-    print rpmq.summary()
-    print rpmq.description()
-    print '##########'
-    print '\n'.join(rpmq.provides())
-    print '##########'
-    print '\n'.join(rpmq.requires())
+    print(rpmq.name(), rpmq.version(), rpmq.release(), rpmq.arch(), rpmq.url())
+    print(rpmq.summary())
+    print(rpmq.description())
+    print('##########')
+    print('\n'.join(rpmq.provides()))
+    print('##########')
+    print('\n'.join(rpmq.requires()))

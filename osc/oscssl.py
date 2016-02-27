@@ -3,15 +3,26 @@
 # and distributed under the terms of the GNU General Public Licence,
 # either version 2, or (at your option) any later version.
 
+from __future__ import print_function
+
 import M2Crypto.httpslib
 from M2Crypto.SSL.Checker import SSLVerificationError
 from M2Crypto import m2, SSL
 import M2Crypto.m2urllib2
-import urlparse
 import socket
-import urllib
-import httplib
 import sys
+
+try:
+    from urllib.parse import urlparse, splithost, splitport, splittype
+    from urllib.request import addinfourl
+    from http.client import HTTPSConnection
+except ImportError:
+    #python 2.x
+    from urlparse import urlparse
+    from urllib import addinfourl, splithost, splitport, splittype
+    from httplib import HTTPSConnection
+
+from .core import raw_input
 
 class TrustedCertStore:
     _tmptrusted = {}
@@ -75,8 +86,8 @@ def verify_cb(ctx, ok, store):
             ctx.verrs.record(store.get_current_cert(), store.get_error(), store.get_error_depth())
         return 1
 
-    except Exception, e:
-        print e
+    except Exception as e:
+        print(e, file=sys.stderr)
         return 0
 
 class FailCert:
@@ -105,15 +116,15 @@ class ValidationErrors:
                 raise Exception("Certificate changed unexpectedly. This should not happen")
         self.failures[depth].errs.append(err)
 
-    def show(self):
+    def show(self, out):
         for depth in self.failures.keys():
             cert = self.failures[depth].cert
-            print "*** certificate verify failed at depth %d" % depth
-            print "Subject: ", cert.get_subject()
-            print "Issuer:  ", cert.get_issuer()
-            print "Valid: ", cert.get_not_before(), "-", cert.get_not_after()
-            print "Fingerprint(MD5):  ", cert.get_fingerprint('md5')
-            print "Fingerprint(SHA1): ", cert.get_fingerprint('sha1')
+            print("*** certificate verify failed at depth %d" % depth, file=out)
+            print("Subject: ", cert.get_subject(), file=out)
+            print("Issuer:  ", cert.get_issuer(), file=out)
+            print("Valid: ", cert.get_not_before(), "-", cert.get_not_after(), file=out)
+            print("Fingerprint(MD5):  ", cert.get_fingerprint('md5'), file=out)
+            print("Fingerprint(SHA1): ", cert.get_fingerprint('sha1'), file=out)
 
             for err in self.failures[depth].errs:
                 reason = "Unknown"
@@ -122,14 +133,13 @@ class ValidationErrors:
                     reason = M2Crypto.Err.get_x509_verify_error(err)
                 except:
                     pass
-                print "Reason:", reason
+                print("Reason:", reason, file=out)
 
     # check if the encountered errors could be ignored
     def could_ignore(self):
         if not 0 in self.failures:
             return True
 
-        from M2Crypto import m2
         nonfatal_errors = [
                 m2.X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY,
                 m2.X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN,
@@ -182,7 +192,7 @@ class myHTTPSHandler(M2Crypto.m2urllib2.HTTPSHandler):
         # Our change: Check to see if we're using a proxy.
         # Then create an appropriate ssl-aware connection.
         full_url = req.get_full_url()
-        target_host = urlparse.urlparse(full_url)[1]
+        target_host = urlparse(full_url)[1]
 
         if (target_host != host):
             h = myProxyHTTPSConnection(host = host, appname = self.appname, ssl_context = self.ctx)
@@ -211,7 +221,7 @@ class myHTTPSHandler(M2Crypto.m2urllib2.HTTPSHandler):
             if s:
                 self.saved_session = s
             r = h.getresponse()
-        except socket.error, err: # XXX what error?
+        except socket.error as err: # XXX what error?
             err.filename = full_url
             raise M2Crypto.m2urllib2.URLError(err)
 
@@ -229,7 +239,7 @@ class myHTTPSHandler(M2Crypto.m2urllib2.HTTPSHandler):
         r.recv = r.read
         fp = socket._fileobject(r)
 
-        resp = urllib.addinfourl(fp, r.msg, req.get_full_url())
+        resp = addinfourl(fp, r.msg, req.get_full_url())
         resp.code = r.status
         resp.msg = r.reason
         return resp
@@ -249,7 +259,7 @@ class myHTTPSConnection(M2Crypto.httpslib.HTTPSConnection):
     def getPort(self):
         return self.port
 
-class myProxyHTTPSConnection(M2Crypto.httpslib.ProxyHTTPSConnection, httplib.HTTPSConnection):
+class myProxyHTTPSConnection(M2Crypto.httpslib.ProxyHTTPSConnection, HTTPSConnection):
     def __init__(self, *args, **kwargs):
         self.appname = kwargs.pop('appname', 'generic')
         M2Crypto.httpslib.ProxyHTTPSConnection.__init__(self, *args, **kwargs)
@@ -261,25 +271,25 @@ class myProxyHTTPSConnection(M2Crypto.httpslib.ProxyHTTPSConnection, httplib.HTT
     def endheaders(self, *args, **kwargs):
         if self._proxy_auth is None:
             self._proxy_auth = self._encode_auth()
-        httplib.HTTPSConnection.endheaders(self, *args, **kwargs)        
+        HTTPSConnection.endheaders(self, *args, **kwargs)
 
     # broken in m2crypto: port needs to be an int
     def putrequest(self, method, url, skip_host=0, skip_accept_encoding=0):
         #putrequest is called before connect, so can interpret url and get
         #real host/port to be used to make CONNECT request to proxy
-        proto, rest = urllib.splittype(url)
+        proto, rest = splittype(url)
         if proto is None:
-            raise ValueError, "unknown URL type: %s" % url
+            raise ValueError("unknown URL type: %s" % url)
         #get host
-        host, rest = urllib.splithost(rest)
+        host, rest = splithost(rest)
         #try to get port
-        host, port = urllib.splitport(host)
+        host, port = splitport(host)
         #if port is not defined try to get from proto
         if port is None:
             try:
                 port = self._ports[proto]
             except KeyError:
-                raise ValueError, "unknown protocol for: %s" % url
+                raise ValueError("unknown protocol for: %s" % url)
         self._real_host = host
         self._real_port = int(port)
         M2Crypto.httpslib.HTTPSConnection.putrequest(self, method, url, skip_host, skip_accept_encoding)
@@ -310,33 +320,38 @@ def verify_certificate(connection):
             if tc.is_trusted(): # ok, same cert as the stored one
                 return
             else:
-                print >>sys.stderr, "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!"
-                print >>sys.stderr, "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!"
-                print >>sys.stderr, "offending certificate is at '%s'" % tc.file
+                print("WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!", file=sys.stderr)
+                print("IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!", file=sys.stderr)
+                print("offending certificate is at '%s'" % tc.file, file=sys.stderr)
                 raise SSLVerificationError("remote host identification has changed")
 
-        verrs.show()
+        # if http_debug is set we redirect sys.stdout to an StringIO
+        # instance in order to do some header filtering (see conf module)
+        # so we have to use the "original" stdout for printing
+        out = getattr(connection, '_orig_stdout', sys.stdout)
+        verrs.show(out)
 
-        print
+        print(file=out)
 
         if not verrs.could_ignore():
             raise SSLVerificationError("Certificate validation error cannot be ignored")
 
         if not verrs.chain_ok:
-            print "A certificate in the chain failed verification"
+            print("A certificate in the chain failed verification", file=out)
         if not verrs.cert_ok:
-            print "The server certificate failed verification"
+            print("The server certificate failed verification", file=out)
 
         while True:
-            print """
+            print("""
 Would you like to
 0 - quit (default)
 1 - continue anyways
 2 - trust the server certificate permanently
 9 - review the server certificate
-"""
+""", file=out)
 
-            r = raw_input("Enter choice [0129]: ")
+            print("Enter choice [0129]: ", end='', file=out)
+            r = raw_input()
             if not r or r == '0':
                 connection.close()
                 raise SSLVerificationError("Untrusted Certificate")
@@ -347,6 +362,6 @@ Would you like to
                 tc.trust_always()
                 return
             elif r == '9':
-                print cert.as_text()
+                print(cert.as_text(), file=out)
 
 # vim: sw=4 et

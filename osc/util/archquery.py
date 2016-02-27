@@ -1,7 +1,10 @@
+
+from __future__ import print_function
+
 import os.path
 import re
 import tarfile
-import packagequery
+from . import packagequery
 import subprocess
 
 class ArchError(packagequery.PackageError):
@@ -16,19 +19,23 @@ class ArchQuery(packagequery.PackageQuery):
         #self.pkgsuffix = 'pkg.tar.gz'
         self.pkgsuffix = 'arch'
 
-    def read(self, *extra_tags):
+    def read(self, all_tags=True, self_provides=True, *extra_tags):
+        # all_tags and *extra_tags are currently ignored
         f = open(self.__path, 'rb')
         #self.magic = f.read(5)
         #if self.magic == '\375\067zXZ':
         #    self.pkgsuffix = 'pkg.tar.xz'
         fn = open('/dev/null', 'wb')
-        pipe = subprocess.Popen(['tar', '-O', '-xf', self.__path, '.PKGINFO'], stdout=subprocess.PIPE, stderr=fn).stdout;
+        pipe = subprocess.Popen(['tar', '-O', '-xf', self.__path, '.PKGINFO'], stdout=subprocess.PIPE, stderr=fn).stdout
         for line in pipe.readlines():
             line = line.rstrip().split(' = ', 2)
             if len(line) == 2:
                 if not line[0] in self.fields:
                     self.fields[line[0]] = []
                 self.fields[line[0]].append(line[1])
+        if self_provides:
+            prv = '%s = %s' % (self.name(), self.fields['pkgver'][0])
+            self.fields.setdefault('provides', []).append(prv)
 
     def vercmp(self, archq):
         res = cmp(int(self.epoch()), int(archq.epoch()))
@@ -141,7 +148,12 @@ class ArchQuery(packagequery.PackageQuery):
         return cmp(ver1, ver2)
 
     @staticmethod
-    def filename(name, version, release, arch):
+    def filename(name, epoch, version, release, arch):
+        if epoch:
+            if release:
+                return '%s-%s:%s-%s-%s.arch' % (name, epoch, version, release, arch)
+            else:
+                return '%s-%s:%s-%s.arch' % (name, epoch, version, arch)
         if release:
             return '%s-%s-%s-%s.arch' % (name, version, release, arch)
         else:
@@ -152,13 +164,13 @@ if __name__ == '__main__':
     import sys
     try:
         archq = ArchQuery.query(sys.argv[1])
-    except ArchError, e:
-        print e.msg
+    except ArchError as e:
+        print(e.msg)
         sys.exit(2)
-    print archq.name(), archq.version(), archq.release(), archq.arch()
-    print archq.canonname()
-    print archq.description()
-    print '##########'
-    print '\n'.join(archq.provides())
-    print '##########'
-    print '\n'.join(archq.requires())
+    print(archq.name(), archq.version(), archq.release(), archq.arch())
+    print(archq.canonname())
+    print(archq.description())
+    print('##########')
+    print('\n'.join(archq.provides()))
+    print('##########')
+    print('\n'.join(archq.requires()))

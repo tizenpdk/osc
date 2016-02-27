@@ -1,3 +1,6 @@
+
+from __future__ import print_function
+
 class PackageError(Exception):
     """base class for all package related errors"""
     def __init__(self, fname, msg):
@@ -12,7 +15,7 @@ class PackageQueries(dict):
     """
 
     # map debian arches to common obs arches
-    architectureMap = {'i386': ['i586', 'i686'], 'amd64': ['x86_64']}
+    architectureMap = {'i386': ['i586', 'i686'], 'amd64': ['x86_64'], 'ppc64el': ['ppc64le']}
 
     def __init__(self, wanted_architecture):
         self.wanted_architecture = wanted_architecture
@@ -33,8 +36,8 @@ class PackageQueries(dict):
 
         architecture = query.arch()
 
-        if (architecture in [self.wanted_architecture, 'noarch', 'all'] or
-            self.wanted_architecture in self.architectureMap.get(architecture,
+        if (architecture in [self.wanted_architecture, 'noarch', 'all', 'any']
+            or self.wanted_architecture in self.architectureMap.get(architecture,
                                                                 [])):
             current_query = self.get(name)
 
@@ -84,29 +87,29 @@ class PackageQuery:
         raise NotImplementedError
 
     @staticmethod
-    def query(filename, all_tags = False, extra_rpmtags = (), extra_debtags = ()):
+    def query(filename, all_tags=False, extra_rpmtags=(), extra_debtags=(), self_provides=True):
         f = open(filename, 'rb')
         magic = f.read(7)
         f.seek(0)
         extra_tags = ()
         pkgquery = None
         if magic[:4] == '\xed\xab\xee\xdb':
-            import rpmquery
+            from . import rpmquery
             pkgquery = rpmquery.RpmQuery(f)
             extra_tags = extra_rpmtags
         elif magic == '!<arch>':
-            import debquery
+            from . import debquery
             pkgquery = debquery.DebQuery(f)
             extra_tags = extra_debtags
         elif magic[:5] == '<?xml':
             f.close()
             return None
         elif magic[:5] == '\375\067zXZ' or magic[:2] == '\037\213':
-            import archquery
+            from . import archquery
             pkgquery = archquery.ArchQuery(f)
         else:
             raise PackageError(filename, 'unsupported package type. magic: \'%s\'' % magic)
-        pkgquery.read(all_tags, *extra_tags)
+        pkgquery.read(all_tags, self_provides, *extra_tags)
         f.close()
         return pkgquery
 
@@ -114,14 +117,14 @@ if __name__ == '__main__':
     import sys
     try:
         pkgq = PackageQuery.query(sys.argv[1])
-    except PackageError, e:
-        print e.msg
+    except PackageError as e:
+        print(e.msg)
         sys.exit(2)
-    print pkgq.name()
-    print pkgq.version()
-    print pkgq.release()
-    print pkgq.description()
-    print '##########'
-    print '\n'.join(pkgq.provides())
-    print '##########'
-    print '\n'.join(pkgq.requires())
+    print(pkgq.name())
+    print(pkgq.version())
+    print(pkgq.release())
+    print(pkgq.description())
+    print('##########')
+    print('\n'.join(pkgq.provides()))
+    print('##########')
+    print('\n'.join(pkgq.requires()))

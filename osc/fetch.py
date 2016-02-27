@@ -3,20 +3,28 @@
 # and distributed under the terms of the GNU General Public Licence,
 # either version 2, or (at your option) any later version.
 
-import sys, os
-import urllib2
-from urllib import quote_plus
+from __future__ import print_function
 
-from urlgrabber.grabber import URLGrabError
+import sys, os
+
+try:
+    from urllib.parse import quote_plus
+    from urllib.request import HTTPBasicAuthHandler, HTTPCookieProcessor, HTTPPasswordMgrWithDefaultRealm, HTTPError
+except ImportError:
+    #python 2.x
+    from urllib import quote_plus
+    from urllib2 import HTTPBasicAuthHandler, HTTPCookieProcessor, HTTPPasswordMgrWithDefaultRealm, HTTPError
+
+from urlgrabber.grabber import URLGrabber, URLGrabError
 from urlgrabber.mirror import MirrorGroup
-from core import makeurl, streamfile
-from util import packagequery, cpio
-import conf
-import oscerr
+from .core import makeurl, streamfile
+from .util import packagequery, cpio
+from . import conf
+from . import oscerr
 import tempfile
 import re
 try:
-    from meter import TextMeter
+    from .meter import TextMeter
 except:
     TextMeter = None
 
@@ -24,40 +32,44 @@ except:
 def join_url(self, base_url, rel_url):
     """to override _join_url of MirrorGroup, because we want to
     pass full URLs instead of base URL where relative_url is added later...
-    IOW, we make MirrorGroup ignore relative_url"""
+    IOW, we make MirrorGroup ignore relative_url
+    """
     return base_url
 
-class OscFileGrabber:
-    def __init__(self, progress_obj = None):
+
+class OscFileGrabber(URLGrabber):
+    def __init__(self, progress_obj=None):
+        # we cannot use super because we still have to support
+        # older urlgrabber versions where URLGrabber is an old-style class
+        URLGrabber.__init__(self)
         self.progress_obj = progress_obj
 
-    def urlgrab(self, url, filename, text = None, **kwargs):
+    def urlgrab(self, url, filename, text=None, **kwargs):
         if url.startswith('file://'):
-            file = url.replace('file://', '', 1)
-            if os.path.isfile(file):
-                return file
+            f = url.replace('file://', '', 1)
+            if os.path.isfile(f):
+                return f
             else:
-                raise URLGrabError(2, 'Local file \'%s\' does not exist' % file)
-        f = open(filename, 'wb')
-        try:
+                raise URLGrabError(2, 'Local file \'%s\' does not exist' % f)
+        with file(filename, 'wb') as f:
             try:
-                for i in streamfile(url, progress_obj=self.progress_obj, text=text):
+                for i in streamfile(url, progress_obj=self.progress_obj,
+                                    text=text):
                     f.write(i)
-            except urllib2.HTTPError, e:
+            except HTTPError as e:
                 exc = URLGrabError(14, str(e))
                 exc.url = url
                 exc.exception = e
                 exc.code = e.code
                 raise exc
-            except IOError, e:
+            except IOError as e:
                 raise URLGrabError(4, str(e))
-        finally:
-            f.close()
         return filename
 
+
 class Fetcher:
-    def __init__(self, cachedir = '/tmp', api_host_options = {}, urllist = [], http_debug = False,
-                 cookiejar = None, offline = False, enable_cpio = True):
+    def __init__(self, cachedir='/tmp', api_host_options={}, urllist=[],
+            http_debug=False, cookiejar=None, offline=False, enable_cpio=True):
         # set up progress bar callback
         if sys.stdout.isatty() and TextMeter:
             self.progress_obj = TextMeter(fo=sys.stdout)
@@ -71,20 +83,21 @@ class Fetcher:
         self.cpio = {}
         self.enable_cpio = enable_cpio
 
-        passmgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        for host in api_host_options.keys():
-            passmgr.add_password(None, host, api_host_options[host]['user'], api_host_options[host]['pass'])
-        openers = (urllib2.HTTPBasicAuthHandler(passmgr), )
+        passmgr = HTTPPasswordMgrWithDefaultRealm()
+        for host in api_host_options:
+            passmgr.add_password(None, host, api_host_options[host]['user'],
+                                 api_host_options[host]['pass'])
+        openers = (HTTPBasicAuthHandler(passmgr), )
         if cookiejar:
-            openers += (urllib2.HTTPCookieProcessor(cookiejar), )
+            openers += (HTTPCookieProcessor(cookiejar), )
         self.gr = OscFileGrabber(progress_obj=self.progress_obj)
 
     def failureReport(self, errobj):
         """failure output for failovers from urlgrabber"""
         if errobj.url.startswith('file://'):
             return {}
-        print 'Trying openSUSE Build Service server for %s (%s), not found at %s.' \
-              % (self.curpac, self.curpac.project, errobj.url.split('/')[2])
+        print('Trying openSUSE Build Service server for %s (%s), not found at %s.'
+              % (self.curpac, self.curpac.project, errobj.url.split('/')[2]))
         return {}
 
     def __add_cpio(self, pac):
@@ -96,56 +109,66 @@ class Fetcher:
             return
         query = ['binary=%s' % quote_plus(i) for i in pkgs]
         query.append('view=cpio')
-        tmparchive = tmpfile = None
         try:
-            (fd, tmparchive) = tempfile.mkstemp(prefix='osc_build_cpio')
-            (fd, tmpfile) = tempfile.mkstemp(prefix='osc_build')
             url = makeurl(apiurl, ['build', project, repo, arch, package], query=query)
             sys.stdout.write("preparing download ...\r")
             sys.stdout.flush()
-            self.gr.urlgrab(url, filename = tmparchive, text = 'fetching packages for \'%s\'' % project)
-            archive = cpio.CpioRead(tmparchive)
-            archive.read()
-            for hdr in archive:
-                # XXX: we won't have an .errors file because we're using
-                # getbinarylist instead of the public/... route (which is
-                # routed to getbinaries (but that won't work for kiwi products))
-                if hdr.filename == '.errors':
-                    archive.copyin_file(hdr.filename)
-                    raise oscerr.APIError('CPIO archive is incomplete (see .errors file)')
-                if package == '_repository':
-                    n = re.sub(r'\.pkg\.tar\..z$', '.arch', hdr.filename)
-                    pac = pkgs[n.rsplit('.', 1)[0]]
-                else:
-                    # this is a kiwi product
-                    pac = pkgs[hdr.filename]
-                archive.copyin_file(hdr.filename, os.path.dirname(tmpfile), os.path.basename(tmpfile))
-                self.move_package(tmpfile, pac.localdir, pac)
-                # check if we got all packages... (because we've no .errors file)
-            for pac in pkgs.itervalues():
-                if not os.path.isfile(pac.fullfilename):
-                    raise oscerr.APIError('failed to fetch file \'%s\': ' \
-                        'does not exist in CPIO archive' % pac.repofilename)
-        except URLGrabError, e:
+            with tempfile.NamedTemporaryFile(prefix='osc_build_cpio') as tmparchive:
+                self.gr.urlgrab(url, filename=tmparchive.name,
+                                text='fetching packages for \'%s\'' % project)
+                archive = cpio.CpioRead(tmparchive.name)
+                archive.read()
+                for hdr in archive:
+                    # XXX: we won't have an .errors file because we're using
+                    # getbinarylist instead of the public/... route
+                    # (which is routed to getbinaries)
+                    # getbinaries does not support kiwi builds
+                    if hdr.filename == '.errors':
+                        archive.copyin_file(hdr.filename)
+                        raise oscerr.APIError('CPIO archive is incomplete '
+                                              '(see .errors file)')
+                    if package == '_repository':
+                        n = re.sub(r'\.pkg\.tar\..z$', '.arch', hdr.filename)
+                        pac = pkgs[n.rsplit('.', 1)[0]]
+                    else:
+                        # this is a kiwi product
+                        pac = pkgs[hdr.filename]
+
+                    # Extract a single file from the cpio archive
+                    try:
+                        fd, tmpfile = tempfile.mkstemp(prefix='osc_build_file')
+                        archive.copyin_file(hdr.filename,
+                                            os.path.dirname(tmpfile),
+                                            os.path.basename(tmpfile))
+                        self.move_package(tmpfile, pac.localdir, pac)
+                    finally:
+                        os.close(fd)
+                        if os.path.exists(tmpfile):
+                            os.unlink(tmpfile)
+
+                for pac in pkgs.values():
+                    if not os.path.isfile(pac.fullfilename):
+                        raise oscerr.APIError('failed to fetch file \'%s\': '
+                                              'missing in CPIO archive' %
+                                              pac.repofilename)
+        except URLGrabError as e:
             if e.errno != 14 or e.code != 414:
                 raise
             # query str was too large
-            keys = pkgs.keys()
+            keys = list(pkgs.keys())
             if len(keys) == 1:
-                raise oscerr.APIError('unable to fetch cpio archive: server always returns code 414')
+                raise oscerr.APIError('unable to fetch cpio archive: '
+                                      'server always returns code 414')
             n = len(pkgs) / 2
             new_pkgs = dict([(k, pkgs[k]) for k in keys[:n]])
-            self.__download_cpio_archive(apiurl, project, repo, arch, package, **new_pkgs)
+            self.__download_cpio_archive(apiurl, project, repo, arch,
+                                         package, **new_pkgs)
             new_pkgs = dict([(k, pkgs[k]) for k in keys[n:]])
-            self.__download_cpio_archive(apiurl, project, repo, arch, package, **new_pkgs)
-        finally:
-            if not tmparchive is None and os.path.exists(tmparchive):
-                os.unlink(tmparchive)
-            if not tmpfile is None and os.path.exists(tmpfile):
-                os.unlink(tmpfile)
+            self.__download_cpio_archive(apiurl, project, repo, arch,
+                                         package, **new_pkgs)
 
     def __fetch_cpio(self, apiurl):
-        for prpap, pkgs in self.cpio.iteritems():
+        for prpap, pkgs in self.cpio.items():
             project, repo, arch, package = prpap.split('/', 3)
             self.__download_cpio_archive(apiurl, project, repo, arch, package, **pkgs)
 
@@ -154,60 +177,59 @@ class Fetcher:
         self.curpac = pac
 
         MirrorGroup._join_url = join_url
-        mg = MirrorGroup(self.gr, pac.urllist, failure_callback=(self.failureReport,(),{}))
+        mg = MirrorGroup(self.gr, pac.urllist, failure_callback=(self.failureReport, (), {}))
 
         if self.http_debug:
-            print >>sys.stderr, '\nURLs to try for package \'%s\':' % pac
-            print >>sys.stderr, '\n'.join(pac.urllist)
-            print >>sys.stderr
+            print('\nURLs to try for package \'%s\':' % pac, file=sys.stderr)
+            print('\n'.join(pac.urllist), file=sys.stderr)
+            print(file=sys.stderr)
 
-        (fd, tmpfile) = tempfile.mkstemp(prefix='osc_build')
         try:
-            try:
-                mg.urlgrab(pac.filename,
-                           filename = tmpfile,
-                           text = '%s(%s) %s' %(prefix, pac.project, pac.filename))
-                self.move_package(tmpfile, pac.localdir, pac)
-            except URLGrabError, e:
-                if self.enable_cpio and e.errno == 256:
-                    self.__add_cpio(pac)
-                    return
-                print
-                print >>sys.stderr, 'Error:', e.strerror
-                print >>sys.stderr, 'Failed to retrieve %s from the following locations (in order):' % pac.filename
-                print >>sys.stderr, '\n'.join(pac.urllist)
-                sys.exit(1)
+            with tempfile.NamedTemporaryFile(prefix='osc_build',
+                                             delete=False) as tmpfile:
+                mg.urlgrab(pac.filename, filename=tmpfile.name,
+                           text='%s(%s) %s' % (prefix, pac.project, pac.filename))
+                self.move_package(tmpfile.name, pac.localdir, pac)
+        except URLGrabError as e:
+            if self.enable_cpio and e.errno == 256:
+                self.__add_cpio(pac)
+                return
+            print()
+            print('Error:', e.strerror, file=sys.stderr)
+            print('Failed to retrieve %s from the following locations '
+                  '(in order):' % pac.filename, file=sys.stderr)
+            print('\n'.join(pac.urllist), file=sys.stderr)
+            sys.exit(1)
         finally:
-            os.close(fd)
-            if os.path.exists(tmpfile):
-                os.unlink(tmpfile)
+            if os.path.exists(tmpfile.name):
+                os.unlink(tmpfile.name)
 
-    def move_package(self, tmpfile, destdir, pac_obj = None):
+    def move_package(self, tmpfile, destdir, pac_obj=None):
         import shutil
         pkgq = packagequery.PackageQuery.query(tmpfile, extra_rpmtags=(1044, 1051, 1052))
         if pkgq:
-          canonname = pkgq.canonname()
+            canonname = pkgq.canonname()
         else:
-          if pac_obj is None:
-            print >>sys.stderr, 'Unsupported file type: ', tmpfile
-            sys.exit(1)
-          canonname = pac_obj.binary
+            if pac_obj is None:
+                print('Unsupported file type: ', tmpfile, file=sys.stderr)
+                sys.exit(1)
+            canonname = pac_obj.binary
 
         fullfilename = os.path.join(destdir, canonname)
         if pac_obj is not None:
             pac_obj.filename = canonname
             pac_obj.fullfilename = fullfilename
         shutil.move(tmpfile, fullfilename)
-        os.chmod(fullfilename, 0644)
+        os.chmod(fullfilename, 0o644)
 
     def dirSetup(self, pac):
         dir = os.path.join(self.cachedir, pac.localdir)
         if not os.path.exists(dir):
             try:
-                os.makedirs(dir, mode=0755)
-            except OSError, e:
-                print >>sys.stderr, 'packagecachedir is not writable for you?'
-                print >>sys.stderr, e
+                os.makedirs(dir, mode=0o755)
+            except OSError as e:
+                print('packagecachedir is not writable for you?', file=sys.stderr)
+                print(e, file=sys.stderr)
                 sys.exit(1)
 
     def run(self, buildinfo):
@@ -221,36 +243,39 @@ class Fetcher:
         needed = all - cached
         if all:
             miss = 100.0 * needed / all
-        print "%.1f%% cache miss. %d/%d dependencies cached.\n" % (miss, cached, all)
+        print("%.1f%% cache miss. %d/%d dependencies cached.\n" % (miss, cached, all))
         done = 1
         for i in buildinfo.deps:
             i.makeurls(self.cachedir, self.urllist)
             if not os.path.exists(i.fullfilename):
                 if self.offline:
-                    raise oscerr.OscIOError(None, 'Missing package \'%s\' in cache: --offline not possible.' % i.fullfilename)
+                    raise oscerr.OscIOError(None,
+                                            'Missing \'%s\' in cache: '
+                                            '--offline not possible.' %
+                                            i.fullfilename)
                 self.dirSetup(i)
                 try:
                     # if there isn't a progress bar, there is no output at all
                     if not self.progress_obj:
-                        print '%d/%d (%s) %s' % (done, needed, i.project, i.filename)
+                        print('%d/%d (%s) %s' % (done, needed, i.project, i.filename))
                     self.fetch(i)
                     if self.progress_obj:
-                        print "  %d/%d\r" % (done, needed),
+                        print("  %d/%d\r" % (done, needed), end=' ')
                         sys.stdout.flush()
 
                 except KeyboardInterrupt:
-                    print 'Cancelled by user (ctrl-c)'
-                    print 'Exiting.'
+                    print('Cancelled by user (ctrl-c)')
+                    print('Exiting.')
                     sys.exit(0)
                 done += 1
 
         self.__fetch_cpio(buildinfo.apiurl)
 
-        prjs = buildinfo.projects.keys()
+        prjs = list(buildinfo.projects.keys())
         for i in prjs:
             dest = "%s/%s" % (self.cachedir, i)
             if not os.path.exists(dest):
-                os.makedirs(dest, mode=0755)
+                os.makedirs(dest, mode=0o755)
             dest += '/_pubkey'
 
             url = makeurl(buildinfo.apiurl, ['source', i, '_pubkey'])
@@ -260,19 +285,25 @@ class Fetcher:
                     raise URLGrabError(2)
                 elif not self.offline:
                     OscFileGrabber().urlgrab(url, dest)
-                if not i in buildinfo.prjkeys: # not that many keys usually
+                # not that many keys usually
+                if i not in buildinfo.prjkeys:
                     buildinfo.keys.append(dest)
                     buildinfo.prjkeys.append(i)
             except KeyboardInterrupt:
-                print 'Cancelled by user (ctrl-c)'
-                print 'Exiting.'
+                print('Cancelled by user (ctrl-c)')
+                print('Exiting.')
                 if os.path.exists(dest):
                     os.unlink(dest)
                 sys.exit(0)
-            except URLGrabError, e:
+            except URLGrabError as e:
+                # Not found is okay, let's go to the next project
+                if e.errno == 14 and e.code != 404:
+                    print("Invalid answer from server", e, file=sys.stderr)
+                    sys.exit(1)
+
                 if self.http_debug:
-                    print >>sys.stderr, "can't fetch key for %s: %s" %(i, e.strerror)
-                    print >>sys.stderr, "url: %s" % url
+                    print("can't fetch key for %s: %s" % (i, e.strerror), file=sys.stderr)
+                    print("url: %s" % url, file=sys.stderr)
 
                 if os.path.exists(dest):
                     os.unlink(dest)
@@ -281,6 +312,7 @@ class Fetcher:
                 # try key from parent project
                 if len(l) > 1 and l[1] and not l[0] in buildinfo.projects:
                     prjs.append(l[0])
+
 
 def verify_pacs_old(pac_list):
     """Take a list of rpm filenames and run rpm -K on them.
@@ -303,29 +335,31 @@ def verify_pacs_old(pac_list):
     os.environ['LC_ALL'] = 'en_EN'
 
     o = subprocess.Popen(['rpm', '-K'] + pac_list, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, close_fds=True).stdout
+                         stderr=subprocess.STDOUT, close_fds=True).stdout
 
     # restore locale
-    if saved_LC_ALL: os.environ['LC_ALL'] = saved_LC_ALL
-    else: os.environ.pop('LC_ALL')
+    if saved_LC_ALL:
+        os.environ['LC_ALL'] = saved_LC_ALL
+    else:
+        os.environ.pop('LC_ALL')
 
     for line in o.readlines():
 
-        if not 'OK' in line:
-            print
-            print >>sys.stderr, 'The following package could not be verified:'
-            print >>sys.stderr, line
+        if 'OK' not in line:
+            print()
+            print('The following package could not be verified:', file=sys.stderr)
+            print(line, file=sys.stderr)
             sys.exit(1)
 
         if 'NOT OK' in line:
-            print
-            print >>sys.stderr, 'The following package could not be verified:'
-            print >>sys.stderr, line
+            print()
+            print('The following package could not be verified:', file=sys.stderr)
+            print(line, file=sys.stderr)
 
             if 'MISSING KEYS' in line:
                 missing_key = line.split('#')[-1].split(')')[0]
 
-                print >>sys.stderr, """
+                print("""
 - If the key (%(name)s) is missing, install it first.
   For example, do the following:
     osc signkey PROJECT > file
@@ -338,13 +372,13 @@ def verify_pacs_old(pac_list):
 
 - You may use --no-verify to skip the verification (which is a risk for your system).
 """ % {'name': missing_key,
-       'dir': os.path.expanduser('~')}
+       'dir': os.path.expanduser('~')}, file=sys.stderr)
 
             else:
-                print >>sys.stderr, """
+                print("""
 - If the signature is wrong, you may try deleting the package manually
   and re-run this program, so it is fetched again.
-"""
+""", file=sys.stderr)
 
             sys.exit(1)
 
@@ -355,8 +389,8 @@ def verify_pacs(bi):
        In case of failure, exit.
        """
 
-    pac_list = [ i.fullfilename for i in bi.deps ]
-    if not conf.config['builtin_signature_check']:
+    pac_list = [i.fullfilename for i in bi.deps]
+    if conf.config['builtin_signature_check'] is not True:
         return verify_pacs_old(pac_list)
 
     if not pac_list:
@@ -365,9 +399,9 @@ def verify_pacs(bi):
     if not bi.keys:
         raise oscerr.APIError("can't verify packages due to lack of GPG keys")
 
-    print "using keys from", ', '.join(bi.prjkeys)
+    print("using keys from", ', '.join(bi.prjkeys))
 
-    import checker
+    from . import checker
     failed = False
     checker = checker.Checker()
     try:
@@ -375,9 +409,9 @@ def verify_pacs(bi):
         for pkg in pac_list:
             try:
                 checker.check(pkg)
-            except Exception, e:
+            except Exception as e:
                 failed = True
-                print pkg, ':', e
+                print(pkg, ':', e)
     except:
         checker.cleanup()
         raise

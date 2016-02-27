@@ -1,4 +1,93 @@
+0.149
+  - removed "--diff" option from the "createrequest" command
+  - introduced new "vc-cmd" config option, which is used to specify the path
+    to the vc script
+  - various bugfixes
+
+0.148
+  - support new history including review history of OBS 2.6
+  - display request priorities, if important or critical
+  - add "osc rq priorize" command to re-priorize existing requests
+  - allow also "osc rq ls" shortcut
+  - fish shell completion support
+
+0.147
+  - support groups in maintainership requests
+  - fixing listing of review requests
+  - support expanded package listing (when using project links)
+  - fixing "osc add git://" behaviour
+  - using xz as default compression
+  - support local debian live (image) build format
+  - handle ppc64le for debian as well
+  - fix buildlog --strip-time
+  - some more minor bugfixes
+  - speedup update of a project working copy (in some cases)
+
+0.146
+  - support maintenance release request with acceptinfo data (OBS 2.6)
+  - setlinkrev can be used to update frozen links to current revisions again
+  - report errors in case request accept fails
+  - support epoch number handling for local builds
+  - support bugowner request handling for groups
+  - support usage of fedoras mock to build packages
+  - support build --prefer-pkgs for Arch linux
+  - support bash-completion for .kiwi files
+
+0.145
+  - allow to use the set-release option when running a manual release
+  - added support for "osc requestmaintainership PROJECT"
+  - various bugfixes:
+    - print_buildlog: do not strip tabs
+    - fixed "osc -H ..." in combination with a proxy
+    - fixed creation of ~/.osc_cookiejar
+    - Package.commit: create _meta for newly added packages
+    - fixed behavior of set_link_rev #72
+
+0.144
+  - allow commiting to package sources from linked projects. osc will ask to branch it first.
+  - group support in bugowner and maintainer command
+
+0.143
+  - add option to add a auto-accept in future for delete requests (handy for admins)
+  - many bugfixes:
+    - plugin loading
+    - bugowner handling
+    - download of server side generated source "up -S"
+    - wipebinaries command 
+
+0.142
+  - ppc64p7 build support
+  - request --no-devel to disable request forwarding
+#
+# Features which requires OBS 2.5
+#
+  - authentification token support
+
+0.141
+  - crash fixes
+  - support for kiwi appliance builds using obsrepositories:/ directive
+  - support for manual release of sources and binaries
+  - add --last parameter for build logs to show last finished log file, if currently building
+  - add signkey --sslcert option to fetch the optional create ssl certificate instead of gpg key
+
+0.140
+  - support python 2.7 and python 3 in parallel now
+  - reworked plugin loading mechanism in order to avoid the (mass) breakage of existing
+    plugins due to the python 3 support. Nonetheless if a plugin uses the "@cmdln.option(...)"
+    decorator it has to import the cmdln module first via "from osc import cmdln".
+  - allow specifying directories as mv targets
+  - drop the support for deprecated cbinstall and cbpreinstall directives
+  - allow to set maintainer or bugowner ship for a binary package initially, but ask back if
+    this is the right place.
+  - support listing of deleted source files "ls -D $PROJECT $PACKAGE"
+  - build results do show that a succeeded is not yet published
+  - improved bash completions
+  - default build root includes repository and architecture name now
+  - --request-accept-or-revoke option, useful to handle mass approval of requests
+  - multiple minor bugfixes
+
 0.139
+  - various bugfixes for owner search
   - support generic emulator virtualization
   - added "--host" argument to "osc build" (used to perform the build on a remote host)
   - "search --maintained" is obsolete. Abort on usage.
