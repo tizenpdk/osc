@@ -1,3 +1,8 @@
+osc (0.149.0-2-tizen) unstable; urgency=low
+  - Update to 0.149.0
+
+ -- Adrian Schroeter <adrian@suse.de>  Wed, 28 Jun 2012 10:00:00 +0200
+
 osc (0.139.0-1) unstable; urgency=low
   - Update to 0.139.0
 
