@@ -3,7 +3,7 @@
 Name:           osc
 Summary:        OpenSUSE Build Service Commander
 Version:        0.153.0
-Release:        1.3
+Release:        1.5
 Group:          Development/Tools/Other
 License:        GPL v2 or later
 Url:            http://www.gitorious.org/opensuse/osc

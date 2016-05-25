@@ -10,7 +10,7 @@ import subprocess
 class ArchError(packagequery.PackageError):
     pass
 
-class ArchQuery(packagequery.PackageQuery):
+class ArchQuery(packagequery.PackageQuery, packagequery.PackageQueryResult):
     def __init__(self, fh):
         self.__file = fh
         self.__path = os.path.abspath(fh.name)
@@ -36,6 +36,7 @@ class ArchQuery(packagequery.PackageQuery):
         if self_provides:
             prv = '%s = %s' % (self.name(), self.fields['pkgver'][0])
             self.fields.setdefault('provides', []).append(prv)
+        return self
 
     def vercmp(self, archq):
         res = cmp(int(self.epoch()), int(archq.epoch()))
@@ -88,9 +89,19 @@ class ArchQuery(packagequery.PackageQuery):
     def requires(self):
         return self.fields['depend'] if 'depend' in self.fields else []
 
+    def conflicts(self):
+        return self.fields['conflict'] if 'conflict' in self.fields else []
+
+    def obsoletes(self):
+        return self.fields['replaces'] if 'replaces' in self.fields else []
+
     def canonname(self):
         pkgver = self.fields['pkgver'][0] if 'pkgver' in self.fields else None
         return self.name() + '-' + pkgver + '-' + self.arch() + '.' + self.pkgsuffix
+
+    def gettag(self, tag):
+        # implement me, if needed
+        return None
 
     @staticmethod
     def query(filename, all_tags = False, *extra_tags):

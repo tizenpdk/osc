@@ -66,7 +66,7 @@ can_also_build = {
              'armv5tel': [                                        'armv4l', 'armv5el',                                 'armv5tel' ],
              's390x':  ['s390' ],
              'ppc64':  [                        'ppc', 'ppc64', 'ppc64p7', 'ppc64le' ],
-             'ppc64le': [ 'ppc64le' ],
+             'ppc64le': [ 'ppc64le', 'ppc64' ],
              'i586':   [                'i386' ],
              'i686':   [        'i586', 'i386' ],
              'x86_64': ['i686', 'i586', 'i386' ],
@@ -179,7 +179,7 @@ class Pac:
 
         self.mp = {}
         for i in ['binary', 'package',
-                  'epoch', 'version', 'release',
+                  'epoch', 'version', 'release', 'hdrmd5',
                   'project', 'repository',
                   'preinstall', 'vminstall', 'noinstall', 'installonly', 'runscripts',
                  ]:
@@ -211,13 +211,15 @@ class Pac:
         self.mp['apiurl'] = apiurl
 
         if pacsuffix == 'deb':
-            filename = debquery.DebQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
+            canonname = debquery.DebQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
         elif pacsuffix == 'arch':
-            filename = archquery.ArchQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
+            canonname = archquery.ArchQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
         else:
-            filename = rpmquery.RpmQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
+            canonname = rpmquery.RpmQuery.filename(self.mp['name'], self.mp['epoch'], self.mp['version'], self.mp['release'], self.mp['arch'])
 
-        self.mp['filename'] = node.get('binary') or filename
+        self.mp['canonname'] = canonname
+        # maybe we should rename filename key to binary
+        self.mp['filename'] = node.get('binary') or canonname
         if self.mp['repopackage'] == '_repository':
             self.mp['repofilename'] = self.mp['name']
         else:
@@ -238,7 +240,7 @@ class Pac:
         # or if-modified-since, so the caching is simply name-based (on the assumption
         # that the filename is suitable as identifier)
         self.localdir = '%s/%s/%s/%s' % (cachedir, self.project, self.repository, self.arch)
-        self.fullfilename = os.path.join(self.localdir, self.filename)
+        self.fullfilename = os.path.join(self.localdir, self.canonname)
         self.url_local = 'file://%s' % self.fullfilename
 
         # first, add the local URL
@@ -317,9 +319,9 @@ def get_repo(path):
 
     return repositoryDirectory
 
-def get_prefer_pkgs(dirs, wanted_arch, type):
+def get_prefer_pkgs(dirs, wanted_arch, type, cpio):
     import glob
-    from .util import repodata, packagequery, cpio
+    from .util import repodata, packagequery
     paths = []
     repositories = []
 
@@ -346,7 +348,9 @@ def get_prefer_pkgs(dirs, wanted_arch, type):
             packageQueries.add(packageQuery)
 
     for path in paths:
-        if path.endswith('src.rpm'):
+        if path.endswith('.src.rpm') or path.endswith('.nosrc.rpm'):
+            continue
+        if path.endswith('.patch.rpm') or path.endswith('.delta.rpm'):
             continue
         if path.find('-debuginfo-') > 0:
             continue
@@ -357,21 +361,27 @@ def get_prefer_pkgs(dirs, wanted_arch, type):
                        for name, packageQuery in packageQueries.items())
 
     depfile = create_deps(packageQueries.values())
-    cpio = cpio.CpioWrite()
     cpio.add('deps', '\n'.join(depfile))
-    return prefer_pkgs, cpio
+    return prefer_pkgs
 
 
 def create_deps(pkgqs):
     """
-    creates a list of requires/provides which corresponds to build's internal
+    creates a list of dependencies which corresponds to build's internal
     dependency file format
     """
     depfile = []
     for p in pkgqs:
         id = '%s.%s-0/0/0: ' % (p.name(), p.arch())
-        depfile.append('R:%s%s' % (id, ' '.join(p.requires())))
         depfile.append('P:%s%s' % (id, ' '.join(p.provides())))
+        depfile.append('R:%s%s' % (id, ' '.join(p.requires())))
+        d = p.conflicts()
+        if d:
+            depfile.append('C:%s%s' % (id, ' '.join(d)))
+        d = p.obsoletes()
+        if d:
+            depfile.append('O:%s%s' % (id, ' '.join(d)))
+        depfile.append('I:%s%s-%s 0-%s' % (id, p.name(), p.evr(), p.arch()))
     return depfile
 
 
@@ -436,6 +446,8 @@ def main(apiurl, opts, argv):
         build_root = opts.root
     if opts.target:
         buildargs.append('--target=%s' % opts.target)
+    if opts.threads:
+        buildargs.append('--threads=%s' % opts.threads)
     if opts.jobs:
         buildargs.append('--jobs=%s' % opts.jobs)
     elif config['build-jobs'] > 1:
@@ -558,11 +570,41 @@ def main(apiurl, opts, argv):
             s += "%%define %s\n" % i
         build_descr_data = s + build_descr_data
 
+    cpiodata = None
+    servicefile = os.path.join(os.path.dirname(build_descr), "_service")
+    if not os.path.isfile(servicefile):
+        servicefile = os.path.join(os.path.dirname(build_descr), "_service")
+        if not os.path.isfile(servicefile):
+            servicefile = None
+        else:
+            print('Using local _service file')
+    buildenvfile = os.path.join(os.path.dirname(build_descr), "_buildenv." + repo + "." + arch)
+    if not os.path.isfile(buildenvfile):
+        buildenvfile = os.path.join(os.path.dirname(build_descr), "_buildenv")
+        if not os.path.isfile(buildenvfile):
+            buildenvfile = None
+        else:
+            print('Using local buildenv file: %s' % os.path.basename(buildenvfile))
+    if buildenvfile or servicefile:
+        from .util import cpio
+        if not cpiodata:
+            cpiodata = cpio.CpioWrite()
+
     if opts.prefer_pkgs:
         print('Scanning the following dirs for local packages: %s' % ', '.join(opts.prefer_pkgs))
-        prefer_pkgs, cpio = get_prefer_pkgs(opts.prefer_pkgs, arch, build_type)
-        cpio.add(os.path.basename(build_descr), build_descr_data)
-        build_descr_data = cpio.get()
+        from .util import cpio
+        if not cpiodata:
+            cpiodata = cpio.CpioWrite()
+        prefer_pkgs = get_prefer_pkgs(opts.prefer_pkgs, arch, build_type, cpiodata)
+
+    if cpiodata:
+        cpiodata.add(os.path.basename(build_descr), build_descr_data)
+        # buildenv must come last for compatibility reasons...
+        if buildenvfile:
+            cpiodata.add("buildenv", open(buildenvfile).read())
+        if servicefile:
+            cpiodata.add("_service", open(servicefile).read())
+        build_descr_data = cpiodata.get()
 
     # special handling for overlay and rsync-src/dest
     specialcmdopts = []
@@ -725,8 +767,9 @@ def main(apiurl, opts, argv):
                       enable_cpio = not opts.disable_cpio_bulk_download,
                       cookiejar=cookiejar)
 
-    # implicitly trust the project we are building for
-    check_trusted_projects(apiurl, [ i for i in bi.projects.keys() if not i == prj ])
+    if not opts.trust_all_projects:
+        # implicitly trust the project we are building for
+        check_trusted_projects(apiurl, [ i for i in bi.projects.keys() if not i == prj ])
 
     # now update the package cache
     fetcher.run(bi)
@@ -765,8 +808,9 @@ def main(apiurl, opts, argv):
                     """ temporary directory that removes itself"""
                     def __init__(self, *args, **kwargs):
                         self.name = mkdtemp(*args, **kwargs)
+                    _rmtree = staticmethod(shutil.rmtree)
                     def cleanup(self):
-                        shutil.rmtree(self.name)
+                        self._rmtree(self.name)
                     def __del__(self):
                         self.cleanup()
                     def __exit__(self):
@@ -910,6 +954,17 @@ def main(apiurl, opts, argv):
     else:
         print('WARNING: unknown packages get not verified, they can compromise your system !')
 
+    for i in bi.deps:
+        if i.hdrmd5:
+            from .util import packagequery
+            hdrmd5 = packagequery.PackageQuery.queryhdrmd5(i.fullfilename)
+            if not hdrmd5:
+                print("Error: cannot get hdrmd5 for %s" % i.fullfilename)
+                sys.exit(1)
+            if hdrmd5 != i.hdrmd5:
+                print("Error: hdrmd5 mismatch for %s: %s != %s" % (i.fullfilename, hdrmd5, i.hdrmd5))
+                sys.exit(1)
+
     print('Writing build configuration')
 
     if build_type == 'kiwi':
@@ -951,7 +1006,7 @@ def main(apiurl, opts, argv):
             my_build_swap = build_root + '/swap'
 
         vm_options = [ '--vm-type=%s' % vm_type ]
-        if vm_type != 'lxc' and vm_type != 'emulator':
+        if vm_type != 'lxc':
             vm_options += [ '--vm-disk=' + my_build_device ]
             vm_options += [ '--vm-swap=' + my_build_swap ]
             vm_options += [ '--logfile=%s/.build.log' % build_root ]
@@ -959,6 +1014,11 @@ def main(apiurl, opts, argv):
                 if os.access(build_root, os.W_OK) and os.access('/dev/kvm', os.W_OK):
                     # so let's hope there's also an fstab entry
                     need_root = False
+                if config['build-kernel']:
+                    vm_options += [ '--vm-kernel=' + config['build-kernel'] ]
+                if config['build-initrd']:
+                    vm_options += [ '--vm-initrd=' + config['build-initrd'] ]
+
             build_root += '/.mount'
 
         if config['build-memory']:

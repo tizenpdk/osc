@@ -112,6 +112,8 @@ DEFAULTS = {'apiurl': 'https://api.opensuse.org',
             'build-vmdisk-rootsize': '',        # optional for VM builds
             'build-vmdisk-swapsize': '',        # optional for VM builds
             'build-vmdisk-filesystem': '',        # optional for VM builds
+            'build-kernel': '',                 # optional for VM builds
+            'build-initrd': '',                 # optional for VM builds
 
             'build-jobs': _get_processors(),
             'builtin_signature_check': '1',     # by default use builtin check for verify pkgs
@@ -226,6 +228,12 @@ apiurl = %(apiurl)s
 # build-swap is the disk-image to use as swap for VM builds
 # e.g. /var/tmp/FILE.swap
 #build-swap = /var/tmp/FILE.swap
+
+# build-kernel is the boot kernel used for VM builds
+#build-kernel = /boot/vmlinuz
+
+# build-initrd is the boot initrd used for VM builds
+#build-initrd = /boot/initrd
 
 # build-memory is the amount of memory used in the VM
 # value in MB - e.g. 512
@@ -452,7 +460,7 @@ def _build_opener(url):
 
     # workaround for http://bugs.python.org/issue9639
     authhandler_class = HTTPBasicAuthHandler
-    if sys.version_info >= (2, 6, 6) and sys.version_info < (2, 7, 99) \
+    if sys.version_info >= (2, 6, 6) and sys.version_info < (2, 7, 1) \
         and not 'reset_retry_count' in dir(HTTPBasicAuthHandler):
         print('warning: your urllib2 version seems to be broken. ' \
             'Using a workaround for http://bugs.python.org/issue9639', file=sys.stderr)
@@ -468,7 +476,7 @@ def _build_opener(url):
                 return None
 
         authhandler_class = OscHTTPBasicAuthHandler
-    elif sys.version_info >= (2, 6, 6) and sys.version_info < (2, 7, 99):
+    elif sys.version_info >= (2, 6, 6) and sys.version_info < (2, 7, 1):
         class OscHTTPBasicAuthHandler(HTTPBasicAuthHandler):
             def http_error_404(self, *args):
                 self.reset_retry_count()

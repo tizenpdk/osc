@@ -1,0 +1,4 @@
+<package name="simple" project="osctest">
+  <title>Title example</title>
+  <description>Description example</description>
+</package>

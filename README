@@ -1,6 +1,7 @@
 osc -- opensuse-commander with svn like handling
 
 
+
 Patches can be submitted via
  * mail to opensuse-buildservice@opensuse.org
  * Bugzilla: https://bugzilla.novell.com/enter_bug.cgi?product=openSUSE.org&component=BuildService
@@ -13,7 +14,7 @@ INSTALLATION:
 RPM packages are here (rpm-md repository):
 http://download.opensuse.org/repositories/openSUSE:/Tools/
 
-To install from svn, do
+To install from git, do
 
         python setup.py build
         python setup.py install

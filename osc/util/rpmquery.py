@@ -48,7 +48,7 @@ class RpmHeaderEntry:
         self.count = count
         self.data = None
 
-class RpmQuery(packagequery.PackageQuery):
+class RpmQuery(packagequery.PackageQuery, packagequery.PackageQueryResult):
     LEAD_SIZE = 96
     LEAD_MAGIC = 0xedabeedb
     HEADER_MAGIC = 0x8eade801
@@ -60,7 +60,9 @@ class RpmQuery(packagequery.PackageQuery):
 
     default_tags = (1000, 1001, 1002, 1003, 1004, 1022, 1005, 1020,
         1047, 1112, 1113, # provides
-        1049, 1048, 1050 # requires
+        1049, 1048, 1050, # requires
+        1054, 1053, 1055, # conflicts
+        1090, 1114, 1115  # obsoletes
     )
 
     def __init__(self, fh):
@@ -69,7 +71,7 @@ class RpmQuery(packagequery.PackageQuery):
         self.filename_suffix = 'rpm'
         self.header = None
 
-    def read(self, all_tags=False, self_provides=True, *extra_tags):
+    def read(self, all_tags=False, self_provides=True, *extra_tags, **extra_kw):
         # self_provides is unused because a rpm always has a self provides
         self.__read_lead()
         data = self.__file.read(RpmHeaderEntry.ENTRY_SIZE)
@@ -80,8 +82,10 @@ class RpmQuery(packagequery.PackageQuery):
         size = il * RpmHeaderEntry.ENTRY_SIZE + dl
         # data is 8 byte aligned
         pad = (size + 7) & ~7
-        self.__file.read(pad)
-        data = self.__file.read(RpmHeaderEntry.ENTRY_SIZE)
+        querysig = extra_kw.get('querysig')
+        if not querysig:
+            self.__file.read(pad)
+            data = self.__file.read(RpmHeaderEntry.ENTRY_SIZE)
         hdrmgc, reserved, il, dl = struct.unpack('!I3i', data)
         self.header = RpmHeader(pad, dl)
         if self.HEADER_MAGIC != hdrmgc:
@@ -97,6 +101,7 @@ class RpmQuery(packagequery.PackageQuery):
                 try: # this may fail for -debug* packages
                     self.__read_data(i, data)
                 except: pass
+        return self
 
     def __read_lead(self):
         data = self.__file.read(self.LEAD_SIZE)
@@ -115,9 +120,10 @@ class RpmQuery(packagequery.PackageQuery):
             entry.data = struct.unpack('!%dh' % entry.count, data[off:off + 2 * entry.count])
         elif entry.type == 4:
             entry.data = struct.unpack('!%di' % entry.count, data[off:off + 4 * entry.count])
-        elif entry.type == 6 or entry.type == 7:
-            # XXX: what to do with binary data? for now treat it as a string
+        elif entry.type == 6:
             entry.data = unpack_string(data[off:])
+        elif entry.type == 7:
+            entry.data = data[off:off + entry.count]
         elif entry.type == 8 or entry.type == 9:
             cnt = entry.count
             entry.data = []
@@ -151,7 +157,10 @@ class RpmQuery(packagequery.PackageQuery):
             raise RpmHeaderError(self.__path, 'unsupported tag type \'%d\' (tag: \'%s\'' % (entry.type, entry.tag))
 
     def __reqprov(self, tag, flags, version):
-        pnames = self.header.gettag(tag).data
+        pnames = self.header.gettag(tag)
+        if not pnames:
+	    return []
+        pnames = pnames.data
         pflags = self.header.gettag(flags).data
         pvers = self.header.gettag(version).data
         if not (pnames and pflags and pvers):
@@ -221,6 +230,12 @@ class RpmQuery(packagequery.PackageQuery):
     def requires(self):
         return self.__reqprov(1049, 1048, 1050)
 
+    def conflicts(self):
+        return self.__reqprov(1054, 1053, 1055)
+
+    def obsoletes(self):
+        return self.__reqprov(1090, 1114, 1115)
+
     def is_src(self):
         # SOURCERPM = 1044
         return self.gettag(1044) is None
@@ -249,6 +264,17 @@ class RpmQuery(packagequery.PackageQuery):
         rpmq.read()
         f.close()
         return rpmq
+
+    @staticmethod
+    def queryhdrmd5(filename):
+        f = open(filename, 'rb')
+        rpmq = RpmQuery(f)
+        rpmq.read(1004, querysig=True)
+        f.close()
+        entry = rpmq.gettag(1004)
+        if entry is None:
+            return None
+        return ''.join([ "%02x" % x for x in struct.unpack('16B', entry.data) ])
 
     @staticmethod
     def rpmvercmp(ver1, ver2):
@@ -326,3 +352,5 @@ if __name__ == '__main__':
     print('\n'.join(rpmq.provides()))
     print('##########')
     print('\n'.join(rpmq.requires()))
+    print('##########')
+    print(RpmQuery.queryhdrmd5(sys.argv[1]))

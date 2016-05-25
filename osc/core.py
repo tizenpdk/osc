@@ -81,7 +81,7 @@ new_project_templ = """\
     <enable />
   </build>
   <debuginfo>
-    <disable />
+    <enable />
   </debuginfo>
 
 <!-- remove this comment to enable one or more build targets
@@ -91,23 +91,23 @@ new_project_templ = """\
     <arch>x86_64</arch>
     <arch>i586</arch>
   </repository>
-  <repository name="openSUSE_11.2">
-    <path project="openSUSE:11.2" repository="standard"/>
+  <repository name="openSUSE_13.2">
+    <path project="openSUSE:13.2" repository="standard"/>
     <arch>x86_64</arch>
     <arch>i586</arch>
   </repository>
-  <repository name="openSUSE_11.1">
-    <path project="openSUSE:11.1" repository="standard"/>
+  <repository name="openSUSE_13.1">
+    <path project="openSUSE:13.1" repository="standard"/>
     <arch>x86_64</arch>
     <arch>i586</arch>
   </repository>
-  <repository name="Fedora_12">
-    <path project="Fedora:12" repository="standard" />
+  <repository name="Fedora_21">
+    <path project="Fedora:21" repository="standard" />
     <arch>x86_64</arch>
     <arch>i586</arch>
   </repository>
-  <repository name="SLE_11">
-    <path project="SUSE:SLE-11" repository="standard" />
+  <repository name="SLE_12">
+    <path project="SUSE:SLE-12:GA" repository="standard" />
     <arch>x86_64</arch>
     <arch>i586</arch>
   </repository>
@@ -273,18 +273,22 @@ class Serviceinfo:
 
         for service in services:
             name = service.get('name')
+            if len(name) < 3 or '/' in name:
+                raise oscerr.APIError("invalid service name")
             mode = service.get('mode', None)
             data = { 'name' : name, 'mode' : '' }
             if mode:
                 data['mode'] = mode
             try:
+                command = [ name ]
                 for param in service.findall('param'):
                     option = param.get('name', None)
                     value = ""
                     if param.text:
                         value = param.text
-                    name += " --" + option + " '" + value + "'"
-                data['command'] = name
+                    command.append("--"+option)
+                    command.append(value)
+                data['command'] = command
                 self.services.append(data)
             except:
                 msg = 'invalid service format:\n%s' % ET.tostring(serviceinfo_node, encoding=ET_ENCODING)
@@ -372,7 +376,7 @@ class Serviceinfo:
         allservices = self.services or []
         if singleservice and not singleservice in allservices:
             # set array to the manual specified singleservice, if it is not part of _service file
-            data = { 'name' : singleservice, 'command' : singleservice, 'mode' : '' }
+            data = { 'name' : singleservice, 'command' : [ singleservice ], 'mode' : '' }
             allservices = [data]
 
         # set environment when using OBS 2.3 or later
@@ -385,6 +389,8 @@ class Serviceinfo:
         for service in allservices:
             if singleservice and service['name'] != singleservice:
                 continue
+            if service['mode'] == "buildtime":
+                continue
             if service['mode'] == "serveronly" and callmode != "disabled":
                 continue
             if service['mode'] == "disabled" and callmode != "disabled":
@@ -393,20 +399,20 @@ class Serviceinfo:
                 continue
             if service['mode'] != "trylocal" and service['mode'] != "localonly" and callmode == "trylocal":
                 continue
-            call = service['command']
             temp_dir = None
             try:
                 temp_dir = tempfile.mkdtemp()
-                name = call.split(None, 1)[0]
-                if not os.path.exists("/usr/lib/obs/service/"+name):
-                    raise oscerr.PackageNotInstalled("obs-service-"+name)
-                cmd = "/usr/lib/obs/service/" + call + " --outdir " + temp_dir
-                if conf.config['verbose'] > 1 or verbose:
-                    print("Run source service:", cmd)
-                r = run_external(cmd, shell=True)
+                cmd = service['command']
+                if not os.path.exists("/usr/lib/obs/service/"+cmd[0]):
+                    raise oscerr.PackageNotInstalled("obs-service-%s"%cmd[0])
+                cmd[0] = "/usr/lib/obs/service/"+cmd[0]
+                cmd = cmd + [ "--outdir", temp_dir ]
+                if conf.config['verbose'] > 1 or verbose or conf.config['debug']:
+                    print("Run source service:", ' '.join(cmd))
+                r = run_external(*cmd)
 
                 if r != 0:
-                    print("Aborting: service call failed: " + cmd)
+                    print("Aborting: service call failed: ", ' '.join(cmd))
                     # FIXME: addDownloadUrlService calls si.execute after
                     #        updating _services.
                     return r
@@ -415,6 +421,7 @@ class Serviceinfo:
                     for filename in os.listdir(temp_dir):
                         shutil.move( os.path.join(temp_dir, filename), os.path.join(dir, filename) )
                 else:
+                    name = service['name']
                     for filename in os.listdir(temp_dir):
                         shutil.move( os.path.join(temp_dir, filename), os.path.join(dir, "_service:"+name+":"+filename) )
             finally:
@@ -2029,7 +2036,7 @@ rev: %s
     def mark_frozen(self):
         store_write_string(self.absdir, '_frozenlink', '')
         print()
-        print("The link in this package is currently broken. Checking")
+        print("The link in this package (\"%s\") is currently broken. Checking" % self.name)
         print("out the last working version instead; please use 'osc pull'")
         print("to merge the conflicts.")
         print()
@@ -2413,6 +2420,8 @@ class ReviewState(AbstractState):
 
 class RequestHistory(AbstractState):
     """Represents a history element of a request"""
+    re_name = re.compile(r'^Request (?:got )?([^\s]+)$')
+
     def __init__(self, history_node):
         AbstractState.__init__(self, history_node.tag)
         self.who = history_node.get('who')
@@ -2428,6 +2437,17 @@ class RequestHistory(AbstractState):
         if not history_node.find('comment') is None and \
             history_node.find('comment').text:
             self.comment = history_node.find('comment').text.strip()
+        self.name = self._parse_name(history_node)
+
+    def _parse_name(self, history_node):
+        name = history_node.get('name', None)
+        if name is not None:
+            # OBS 2.5 and before
+            return name
+        mo = self.re_name.search(self.description)
+        if mo is not None:
+            return mo.group(1)
+        return self.description
 
     def get_node_attrs(self):
         return ('who', 'when')
@@ -2493,13 +2513,15 @@ class Action:
     # allowed types + the corresponding (allowed) attributes
     type_args = {'submit': ('src_project', 'src_package', 'src_rev', 'tgt_project', 'tgt_package', 'opt_sourceupdate',
                             'acceptinfo_rev', 'acceptinfo_srcmd5', 'acceptinfo_xsrcmd5', 'acceptinfo_osrcmd5',
-                            'acceptinfo_oxsrcmd5', 'opt_updatelink'),
+                            'acceptinfo_oxsrcmd5', 'opt_updatelink', 'opt_makeoriginolder'),
         'add_role': ('tgt_project', 'tgt_package', 'person_name', 'person_role', 'group_name', 'group_role'),
         'set_bugowner': ('tgt_project', 'tgt_package', 'person_name', 'group_name'),
         'maintenance_release': ('src_project', 'src_package', 'src_rev', 'tgt_project', 'tgt_package', 'person_name',
                             'acceptinfo_rev', 'acceptinfo_srcmd5', 'acceptinfo_xsrcmd5', 'acceptinfo_osrcmd5',
+                            'acceptinfo_oxsrcmd5', 'acceptinfo_oproject', 'acceptinfo_opackage'),
+        'maintenance_incident': ('src_project', 'src_package', 'src_rev', 'tgt_project', 'tgt_package', 'tgt_releaseproject', 'person_name', 'opt_sourceupdate', 'opt_makeoriginolder',
+                            'acceptinfo_rev', 'acceptinfo_srcmd5', 'acceptinfo_xsrcmd5', 'acceptinfo_osrcmd5',
                             'acceptinfo_oxsrcmd5'),
-        'maintenance_incident': ('src_project', 'src_package', 'src_rev', 'tgt_project', 'tgt_releaseproject', 'person_name', 'opt_sourceupdate'),
         'delete': ('tgt_project', 'tgt_package', 'tgt_repository'),
         'change_devel': ('src_project', 'src_package', 'tgt_project', 'tgt_package'),
         'group': ('grouped_id', )}
@@ -2766,6 +2788,10 @@ class Request:
             if action.src_package == action.tgt_package:
                 tgt_package = ''
             d['target'] = prj_pkg_join(action.tgt_project, tgt_package)
+            if action.opt_makeoriginolder:
+                d['target'] = d['target'] + ' ***make origin older***'
+            if action.opt_updatelink:
+                d['target'] = d['target'] + ' ***update link***'
         elif action.type == 'add_role':
             roles = []
             if action.person_name and action.person_role:
@@ -2883,11 +2909,11 @@ def shorttime(t):
     """
     import time
 
-    if time.localtime()[0] == time.localtime(t)[0]:
+    if time.gmtime()[0] == time.gmtime(t)[0]:
         # same year
-        return time.strftime('%b %d %H:%M', time.localtime(t))
+        return time.strftime('%b %d %H:%M %Z', time.gmtime(t))
     else:
-        return time.strftime('%b %d  %Y', time.localtime(t))
+        return time.strftime('%b %d  %Y', time.gmtime(t))
 
 
 def is_project_dir(d):
@@ -3421,6 +3447,11 @@ def show_pattern_meta(apiurl, prj, pattern):
         e.osc_msg = 'show_pattern_meta: Error getting pattern \'%s\' for project \'%s\'' % (pattern, prj)
         raise
 
+def show_configuration(apiurl):
+    u = makeurl(apiurl, ['public', 'configuration'])
+    f = http_GET(u)
+    return f.readlines()
+
 
 class metafile:
     """metafile that can be manipulated and is stored back after manipulation."""
@@ -3829,7 +3860,6 @@ def _edit_message_open_editor(filename, data, orig_mtime):
     return os.stat(filename).st_mtime != orig_mtime
 
 def edit_message(footer='', template='', templatelen=30):
-    import tempfile
     delim = '--This line, and those below, will be ignored--\n'
     data = ''
     if template != '':
@@ -3839,18 +3869,24 @@ def edit_message(footer='', template='', templatelen=30):
             if lines[templatelen:]:
                 footer = '%s\n\n%s' % ('\n'.join(lines[templatelen:]), footer)
     data += '\n' + delim + '\n' + footer
+    return edit_text(data, delim, suffix='.diff', template=template)
+
+def edit_text(data='', delim=None, suffix='.txt', template=''):
+    import tempfile
     try:
-        (fd, filename) = tempfile.mkstemp(prefix='osc-commitmsg', suffix='.diff')
+        (fd, filename) = tempfile.mkstemp(prefix='osc-editor', suffix=suffix)
         os.close(fd)
         mtime = os.stat(filename).st_mtime
         while True:
             file_changed = _edit_message_open_editor(filename, data, mtime)
-            msg = open(filename).read().split(delim)[0].rstrip()
+            msg = open(filename).read()
+            if delim:
+                msg = msg.split(delim)[0].rstrip()
             if msg and file_changed:
                 break
             else:
                 reason = 'Log message not specified'
-                if template and template == msg:
+                if template == msg:
                     reason = 'Default log message was not changed. Press \'c\' to continue.'
                 ri = raw_input('%s\na)bort, c)ontinue, e)dit: ' % reason)
                 if ri in 'aA':
@@ -3901,19 +3937,23 @@ def create_maintenance_request(apiurl, src_project, src_packages, tgt_project, t
     r.create(apiurl, addrevision=True)
     return r
 
-# This creates an old style submit request for server api 1.0
 def create_submit_request(apiurl,
                          src_project, src_package=None,
                          dst_project=None, dst_package=None,
-                         message="", orev=None, src_update=None):
+                         message="", orev=None, src_update=None, dst_updatelink=None):
 
     import cgi
     options_block = ""
     package = ""
     if src_package:
         package = """package="%s" """ % (src_package)
+    options_block = "<options>"
     if src_update:
-        options_block = """<options><sourceupdate>%s</sourceupdate></options> """ % (src_update)
+        options_block += """<sourceupdate>%s</sourceupdate>""" % (src_update)
+    if dst_updatelink:
+        options_block += """<updatelink>true</updatelink>"""
+    options_block += "</options>"
+
 
     # Yes, this kind of xml construction is horrible
     targetxml = ""
@@ -3924,12 +3964,12 @@ def create_submit_request(apiurl,
         targetxml = """<target project="%s" %s /> """ % ( dst_project, packagexml )
     # XXX: keep the old template for now in order to work with old obs instances
     xml = """\
-<request type="submit">
-    <submit>
+<request>
+    <action type="submit">
         <source project="%s" %s rev="%s"/>
         %s
         %s
-    </submit>
+    </action>
     <state name="new"/>
     <description>%s</description>
 </request>
@@ -3956,14 +3996,21 @@ def create_submit_request(apiurl,
             print("WARNING:")
             print("WARNING: Project does not accept submit request, request to open a NEW maintenance incident instead")
             print("WARNING:")
-            xpath = 'attribute/@name = \'%s\'' % conf.config['maintenance_attribute']
+            xpath = 'maintenance/maintains/@project = \'%s\' and attribute/@name = \'%s\'' % (dst_project, conf.config['maintenance_attribute'])
             res = search(apiurl, project_id=xpath)
             root = res['project_id']
             project = root.find('project')
             if project is None:
+               print("WARNING: This project is not maintained in the maintenance project specified by '%s', looking elsewhere" % conf.config['maintenance_attribute'])
+               xpath = 'maintenance/maintains/@project = \'%s\'' % dst_project
+               res = search(apiurl, project_id=xpath)
+               root = res['project_id']
+               project = root.find('project')
+            if project is None:
                 raise oscerr.APIError("Server did not define a default maintenance project, can't submit.")
             tproject = project.get('name')
             r = create_maintenance_request(apiurl, src_project, [src_package], tproject, dst_project, src_update, message)
+            r = r.reqid
         else:
             raise
 
@@ -4007,12 +4054,8 @@ def change_request_state(apiurl, reqid, newstate, message='', supersed=None, for
                 ['request', reqid], query=query)
     f = http_POST(u, data=message)
 
-    r = f.read()
-    if r.startswith('<status code="'):
-        r = r.split('<status code="')[1]
-        r = r.split('" />')[0]
-
-    return r
+    root = ET.parse(f).getroot()
+    return root.get('code', 'unknown')
 
 def change_request_state_template(req, newstate):
     if not len(req.actions):
@@ -5171,6 +5214,9 @@ class Repo:
     def __str__(self):
         return self.repo_line_templ % (self.name, self.arch)
 
+    def __repr__(self):
+        return 'Repo(%s %s)' % (self.name, self.arch)
+
     @staticmethod
     def fromfile(filename):
         if not os.path.exists(filename):
@@ -5595,7 +5641,7 @@ def print_buildlog(apiurl, prj, package, repository, arch, offset=0, strip_time=
     # to protect us against control characters
     import string
     all_bytes = string.maketrans('', '')
-    remove_bytes = all_bytes[:9] + all_bytes[11:32] # accept tabs and newlines
+    remove_bytes = all_bytes[:8] + all_bytes[14:32] # accept tabs and newlines
 
     query = {'nostream' : '1', 'start' : '%s' % offset}
     if last:
@@ -5685,20 +5731,21 @@ def get_buildhistory(apiurl, prj, package, repository, arch, format = 'text'):
 
     r = []
     for node in root.findall('entry'):
-        rev = int(node.get('rev'))
+        rev = node.get('rev')
         srcmd5 = node.get('srcmd5')
         versrel = node.get('versrel')
         bcnt = int(node.get('bcnt'))
-        t = time.localtime(int(node.get('time')))
-        t = time.strftime('%Y-%m-%d %H:%M:%S', t)
+        t = time.gmtime(int(node.get('time')))
+        t = time.strftime('%Y-%m-%d %H:%M:%S %Z', t)
 
         if format == 'csv':
-            r.append('%s|%s|%d|%s.%d' % (t, srcmd5, rev, versrel, bcnt))
+            r.append('%s|%s|%s|%s.%d' % (t, srcmd5, rev, versrel, bcnt))
         else:
-            r.append('%s   %s %6d    %s.%d' % (t, srcmd5, rev, versrel, bcnt))
+            bversrel='%s.%d' % (versrel, bcnt)
+            r.append('%s   %s    %s %s' % (t, srcmd5, bversrel.ljust(16)[:16], rev))
 
     if format == 'text':
-        r.insert(0, 'time                  srcmd5                              rev   vers-rel.bcnt')
+        r.insert(0, 'time                  srcmd5                              vers-rel.bcnt    rev')
 
     return r
 
@@ -5723,11 +5770,11 @@ def print_jobhistory(apiurl, prj, current_package, repository, arch, format = 't
             reason = "unknown"
         code = node.get('code')
         rt = int(node.get('readytime'))
-        readyt = time.localtime(rt)
-        readyt = time.strftime('%Y-%m-%d %H:%M:%S', readyt)
+        readyt = time.gmtime(rt)
+        readyt = time.strftime('%Y-%m-%d %H:%M:%S %Z', readyt)
         st = int(node.get('starttime'))
         et = int(node.get('endtime'))
-        endtime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(et))
+        endtime = time.strftime('%Y-%m-%d %H:%M:%S %Z', time.gmtime(et))
         waittm = time.gmtime(et-st)
         if waittm.tm_mday > 1:
             waitbuild = "%1dd %2dh %2dm %2ds" % (waittm.tm_mday-1, waittm.tm_hour, waittm.tm_min, waittm.tm_sec)
@@ -5788,8 +5835,8 @@ def get_commitlog(apiurl, prj, package, revision, format = 'text', meta = False,
             requestid = node.find('requestid').text.encode(locale.getpreferredencoding(), 'replace')
         except:
             requestid = ""
-        t = time.localtime(int(node.find('time').text))
-        t = time.strftime('%Y-%m-%d %H:%M:%S', t)
+        t = time.gmtime(int(node.find('time').text))
+        t = time.strftime('%Y-%m-%d %H:%M:%S %Z', t)
 
         if format == 'csv':
             s = '%s|%s|%s|%s|%s|%s|%s' % (rev, user, t, srcmd5, version,

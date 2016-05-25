@@ -47,7 +47,7 @@ For additional information, see
  * http://en.opensuse.org/openSUSE:Build_Service_Tutorial
  * http://en.opensuse.org/openSUSE:OSC
 .PP
-You can modify osc commands, or roll you own, via the plugin API:
+You can modify osc commands, or roll your own, via the plugin API:
  * http://en.opensuse.org/openSUSE:OSC_plugins
 .SH AUTHOR
 osc was written by several authors. This man page is automatically generated.
@@ -67,7 +67,7 @@ class Osc(cmdln.Cmdln):
     * http://en.opensuse.org/openSUSE:Build_Service_Tutorial
     * http://en.opensuse.org/openSUSE:OSC
 
-    You can modify osc commands, or roll you own, via the plugin API:
+    You can modify osc commands, or roll your own, via the plugin API:
     * http://en.opensuse.org/openSUSE:OSC_plugins
     """
     name = 'osc'
@@ -693,13 +693,13 @@ class Osc(cmdln.Cmdln):
             osc meta prj PRJ
             osc meta pkg PRJ PKG
             osc meta pkg PRJ PKG -e
-            osc meta attribute PRJ [PKG [SUBPACKAGE]] [--attribute ATTRIBUTE] [--create|--delete|--set [value_list]]
 
         Usage:
-            osc meta <prj|pkg|prjconf|user|pattern|attribute> ARGS...
-            osc meta <prj|pkg|prjconf|user|pattern|attribute> -e|--edit ARGS...
-            osc meta <prj|pkg|prjconf|user|pattern|attribute> -F|--file ARGS...
+            osc meta <prj|pkg|prjconf|user|pattern> ARGS...
+            osc meta <prj|pkg|prjconf|user|pattern> -e|--edit ARGS...
+            osc meta <prj|pkg|prjconf|user|pattern> -F|--file ARGS...
             osc meta pattern --delete PRJ PATTERN
+            osc meta attribute PRJ [PKG [SUBPACKAGE]] [--attribute ATTRIBUTE] [--create|--delete|--set [value_list]]
         ${cmd_option_list}
         """
 
@@ -948,6 +948,8 @@ class Osc(cmdln.Cmdln):
                   help='never remove source package on accept, but update its content')
     @cmdln.option('--no-update', action='store_true',
                   help='never touch source package on accept (will break source links)')
+    @cmdln.option('--update-link', action='store_true',
+                  help='This transfers the source including the _link file.')
     @cmdln.option('-d', '--diff', action='store_true',
                   help='show diff only instead of creating the actual request')
     @cmdln.option('--yes', action='store_true',
@@ -1026,9 +1028,12 @@ class Osc(cmdln.Cmdln):
             sr_ids = []
             # for single request
             actionxml = ""
-            options_block = ""
+            options_block = "<options>"
             if src_update:
-                options_block = """<options><sourceupdate>%s</sourceupdate></options> """ % (src_update)
+                options_block += """<sourceupdate>%s</sourceupdate>""" % (src_update)
+            if opts.update_link:
+                options_block  + """<updatelink>true</updatelink></options> """
+            options_block += "</options>"
 
             # loop via all packages for checking their state
             for p in meta_get_packagelist(apiurl, project):
@@ -1242,7 +1247,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         result = create_submit_request(apiurl,
                                        src_project, src_package,
                                        dst_project, dst_package,
-                                       opts.message, orev=rev, src_update=src_update)
+                                       opts.message, orev=rev,
+				       src_update=src_update, dst_updatelink=opts.update_link)
         if supersede_existing:
             for req in reqs:
                 change_request_state(apiurl, req.reqid, 'superseded',
@@ -1742,10 +1748,10 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
     @cmdln.option('-m', '--message', metavar='TEXT',
                   help='specify message TEXT')
-    @cmdln.option('-r', '--repository', metavar='TEXT',
-                  help='specify message TEXT')
-    @cmdln.option('--accept-in-hours', metavar='TEXT',
-                  help='specify message time when request shall get accepted automatically. Only works with write permissions in target.')
+    @cmdln.option('-r', '--repository', metavar='REPOSITORY',
+                  help='specify repository')
+    @cmdln.option('--accept-in-hours', metavar='HOURS',
+                  help='specify time when request shall get accepted automatically. Only works with write permissions in target.')
     @cmdln.alias("dr")
     @cmdln.alias("dropreq")
     @cmdln.alias("droprequest")
@@ -2150,7 +2156,7 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                     print('No results')
                 return
 
-            results.sort(reverse=True)
+            # we must not sort the results here, since the api is doing it already "the right way"
             days = opts.days or conf.config['request_list_days']
             since = ''
             try:
@@ -2230,8 +2236,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                 except HTTPError as e:
                     # for OBS 2.0 and before
                     sr_actions = r.get_actions('submit')
-                    if not sr_actions:
-                        raise oscerr.WrongOptions('\'--diff\' not possible (request has no \'submit\' actions)')
+                    if not r.get_actions('submit') and not r.get_actions('maintenance_incident') and not r.get_actions('maintenance_release'):
+                        raise oscerr.WrongOptions('\'--diff\' not possible (request has no supported actions)')
                     for action in sr_actions:
                         diff += 'old: %s/%s\nnew: %s/%s\n' % (action.src_project, action.src_package,
                             action.tgt_project, action.tgt_package)
@@ -2910,6 +2916,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                         help='Use this attribute to find default maintenance project (default is OBS:MaintenanceProject)')
     @cmdln.option('-m', '--message', metavar='TEXT',
                         help='specify message TEXT')
+    @cmdln.option('--release-project', metavar='RELEASEPROJECT',
+                        help='Specify the release project')
     @cmdln.option('--no-cleanup', action='store_true',
                   help='do not remove source project on accept')
     @cmdln.option('--cleanup', action='store_true',
@@ -2933,6 +2941,9 @@ Please submit there instead, or use --nodevelproject to force direct submission.
             osc maintenancerequest [ SOURCEPROJECT [ SOURCEPACKAGES RELEASEPROJECT ] ]
         ${cmd_option_list}
         """
+        #FIXME: the follow syntax would make more sense and would obsolete the --release-project parameter
+        #       but is incompatible with the current one
+        # osc maintenancerequest [ SOURCEPROJECT [ RELEASEPROJECT [ SOURCEPACKAGES ] ]
 
         args = slash_split(args)
         apiurl = self.get_api_url()
@@ -2960,6 +2971,9 @@ Please submit there instead, or use --nodevelproject to force direct submission.
             default_branch = 'home:%s:branches:' % (conf.get_apiurl_usr(apiurl))
             if source_project.startswith(default_branch):
                 opt_sourceupdate = 'cleanup'
+
+        if opts.release_project:
+            release_project = opts.release_project
 
         if opts.incident_project:
             target_project = opts.incident_project
@@ -3048,7 +3062,10 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
         if opts.dryrun:
             for r in result.findall('package'):
-                print("%s/%s"%(r.get('project'), r.get('package')))
+                line="%s/%s"%(r.get('project'), r.get('package'))
+                for d in r.findall('devel'):
+                   line+=" using sources from %s/%s"%(d.get('project'), d.get('package'))
+                print(line)
             return
         
         apiopt = ''
@@ -3302,6 +3319,33 @@ Please submit there instead, or use --nodevelproject to force direct submission.
             sys.exit(1)
         else:
             delete_project(apiurl, prj, opts.force, msg)
+
+
+    def do_lock(self, subcmd, opts, project, package=None):
+        """${cmd_name}: Locks a project or package.
+
+        usage:
+           osc lock PROJECT [PACKAGE]
+
+        ${cmd_option_list}
+        """
+        apiurl = self.get_api_url()
+        kind = 'prj'
+        path_args = (project,)
+        if package is not None:
+            kind = 'pkg'
+            path_args = (project, package)
+        meta = meta_exists(kind, path_args, create_new=False, apiurl=apiurl)
+        root = ET.fromstring(''.join(meta))
+        if root.find('lock') is not None:
+            print('Already locked', file=sys.stderr)
+            sys.exit(1)
+        # alternatively, we could also use the set_flag api call
+        # instead of manually manipulating the xml
+        lock = ET.SubElement(root, 'lock')
+        ET.SubElement(lock, 'enable')
+        meta = ET.tostring(root)
+        edit_meta(kind, path_args=path_args, data=meta)
 
 
     @cmdln.option('-m', '--message', metavar='TEXT',
@@ -3937,8 +3981,12 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         else:
             raise oscerr.WrongArgs('Wrong number of arguments')
 
-        # XXX: API should somehow tell that
-        url_tmpl = 'http://download.opensuse.org/repositories/%s/%s/%s.repo'
+        root = ET.fromstring(''.join(show_configuration(apiurl)))
+        elm = root.find('download_url')
+        if elm is None or not elm.text:
+            raise oscerr.APIError('download_url configuration element expected')
+
+        url_tmpl = elm.text + '/%s/%s/%s.repo'
         repos = get_repositories_of_project(apiurl, project)
         for repo in repos:
             print(url_tmpl % (project.replace(':', ':/'), repo, project))
@@ -4131,6 +4179,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
           'M' Modified
           '?' item is not under version control
           '!' item is missing (removed by non-osc command) or incomplete
+          'S' item is skipped (item exceeds a file size limit or is _service:* file)
+          'F' Frozen (use "osc pull" to merge conflicts) (package-only state)
 
         examples:
           osc st
@@ -4164,7 +4214,9 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                         # state is != ' '
                         lines.append(statfrmt(st, os.path.normpath(os.path.join(prj.dir, pac))))
                         continue
-                    if st == ' ' and opts.verbose or st != ' ':
+                    if p.isfrozen():
+                        lines.append(statfrmt('F', os.path.normpath(os.path.join(prj.dir, pac))))
+                    elif st == ' ' and opts.verbose or st != ' ':
                         lines.append(statfrmt(st, os.path.normpath(os.path.join(prj.dir, pac))))
                     states = p.get_status(opts.show_excluded, *excl_states)
                     for st, filename in sorted(states, lambda x, y: cmp(x[1], y[1])):
@@ -4269,9 +4321,10 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
         pacs = findpacs(args)
         for p in pacs:
-            p.todo = list(set(p.filenamelist + p.filenamelist_unvers + p.to_be_added))
-            for filename in p.todo:
-                if os.path.isdir(filename):
+            todo = list(set(p.filenamelist + p.filenamelist_unvers + p.to_be_added))
+            for filename in todo:
+                abs_filename = os.path.join(p.absdir, filename)
+                if os.path.isdir(abs_filename):
                     continue
                 # ignore foo.rXX, foo.mine for files which are in 'C' state
                 if os.path.splitext(filename)[0] in p.in_conflict:
@@ -4279,6 +4332,9 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                 state = p.status(filename)
                 if state == '?':
                     # TODO: should ignore typical backup files suffix ~ or .orig
+                    p.addfile(filename)
+                elif state == 'D' and os.path.isfile(abs_filename):
+                    # if the "deleted" file exists in the wc, track it again
                     p.addfile(filename)
                 elif state == '!':
                     p.delete_file(filename)
@@ -5413,10 +5469,11 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
         repo_names = sorted(set([r.name for r in repositories]))
         if not arg_repository and repositories:
+            # XXX: we should avoid hardcoding repository names
             # Use a default value from config, but just even if it's available
-            # unless try standard, or openSUSE_Factory
+            # unless try standard, or openSUSE_Factory, or openSUSE_Tumbleweed
             arg_repository = repositories[-1].name
-            for repository in (conf.config['build_repository'], 'standard', 'openSUSE_Factory'):
+            for repository in (conf.config['build_repository'], 'standard', 'openSUSE_Factory', 'openSUSE_Tumbleweed'):
                 if repository in repo_names:
                     arg_repository = repository
                     break
@@ -5504,6 +5561,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                   help='Build in specified directory')
     @cmdln.option('-j', '--jobs', metavar='N',
                   help='Compile with N jobs')
+    @cmdln.option('-t', '--threads', metavar='N',
+                  help='Compile with N threads')
     @cmdln.option('--icecream', metavar='N',
                   help='use N parallel build jobs with icecream')
     @cmdln.option('--ccache', action='store_true',
@@ -5551,6 +5610,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                   help=SUPPRESS_HELP)
     @cmdln.option('--host', metavar='HOST',
             help='perform the build on a remote server - user@server:~/remote/directory')
+    @cmdln.option('--trust-all-projects', action='store_true',
+                  help='trust packages from all projects')
     def do_build(self, subcmd, opts, *args):
         """${cmd_name}: Build a package on your local machine
 
@@ -5640,9 +5701,6 @@ Please submit there instead, or use --nodevelproject to force direct submission.
             for d in opts.prefer_pkgs:
                 if not os.path.isdir(d):
                     raise oscerr.WrongOptions('Preferred package location \'%s\' is not a directory' % d)
-
-        if opts.noinit and opts.offline:
-            raise oscerr.WrongOptions('--noinit and --offline are mutually exclusive')
 
         if opts.offline and opts.preload:
             raise oscerr.WrongOptions('--offline and --preload are mutually exclusive')
@@ -5794,15 +5852,17 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                   help='specify the used build target project')
     @cmdln.option('--noinit', '--no-init', action='store_true',
                   help='do not guess/verify specified repository')
-    @cmdln.option('-r', '--root', action='store_true',
+    @cmdln.option('-r', '--login-as-root', action='store_true',
                   help='login as root instead of abuild')
+    @cmdln.option('--root', metavar='ROOT',
+                  help='Path to the buildroot')
     @cmdln.option('-o', '--offline', action='store_true',
                   help='Use cached data without contacting the api server')
     def do_chroot(self, subcmd, opts, *args):
-        """${cmd_name}: chroot into the buildchroot
+        """${cmd_name}: opens a shell inside of the build root
 
-        chroot into the buildchroot for the given repository, arch and build description
-        (NOTE: this command does not work if "build-type" is set in the config)
+        chroot into the build root for the given repository, arch and build description
+        (NOTE: this command does not work if a VM is used)
 
         usage:
             osc chroot [OPTS] REPOSITORY ARCH BUILD_DESCR
@@ -5814,22 +5874,25 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         """
         if len(args) > 3:
             raise oscerr.WrongArgs('Too many arguments')
-        if conf.config['build-type']:
+        if conf.config['build-type'] and conf.config['build-type'] != "lxc":
             print('Not implemented for VMs', file=sys.stderr)
             sys.exit(1)
 
         user = 'abuild'
-        if opts.root:
+        if opts.login_as_root:
             user = 'root'
-        repository, arch, descr = self.parse_repoarchdescr(args, opts.noinit or opts.offline, opts.alternative_project)
-        project = opts.alternative_project or store_read_project('.')
-        if opts.local_package:
-            package = os.path.splitext(descr)[0]
-        else:
-            package = store_read_package('.')
-        apihost = urlsplit(self.get_api_url())[1]
-        buildroot = os.environ.get('OSC_BUILD_ROOT', conf.config['build-root']) \
-            % {'repo': repository, 'arch': arch, 'project': project, 'package': package, 'apihost': apihost}
+        buildroot = opts.root
+        if buildroot is None:
+            repository, arch, descr = self.parse_repoarchdescr(args, opts.noinit or opts.offline, opts.alternative_project)
+            project = opts.alternative_project or store_read_project('.')
+            if opts.local_package:
+                package = os.path.splitext(descr)[0]
+            else:
+                package = store_read_package('.')
+            apihost = urlsplit(self.get_api_url())[1]
+            if buildroot is None:
+                buildroot = os.environ.get('OSC_BUILD_ROOT', conf.config['build-root']) \
+                    % {'repo': repository, 'arch': arch, 'project': project, 'package': package, 'apihost': apihost}
         if not os.path.isdir(buildroot):
             raise oscerr.OscIOError(None, '\'%s\' is not a directory' % buildroot)
 
@@ -5860,6 +5923,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
            osc buildhist PROJECT PACKAGE REPOSITORY ARCHITECTURE
         ${cmd_option_list}
         """
+
+        args = slash_split(args)
 
         if len(args) < 2 and is_package_dir('.'):
             self.print_repos()
@@ -6626,7 +6691,7 @@ Please submit there instead, or use --nodevelproject to force direct submission.
     @cmdln.option('-V', '--version', action='store_true',
                         help='show package version, revision, and srcmd5. CAUTION: This is slow and unreliable')
     @cmdln.option('-i', '--involved', action='store_true',
-                        help='show projects/packages where given person (or myself) is involved as bugowner or maintainer')
+                        help='show projects/packages where given person (or myself) is involved as bugowner or maintainer [[{group|person}/]<name>] default: person')
     @cmdln.option('-b', '--bugowner', action='store_true',
                         help='as -i, but only bugowner')
     @cmdln.option('-m', '--maintainer', action='store_true',
@@ -6717,14 +6782,25 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         # role filter
         role_filter = ''
         if opts.bugowner or opts.maintainer or opts.involved:
-            xpath = xpath_join(xpath, 'person/@userid = \'%s\'' % search_term, inner=True)
-            role_filter = '%s (%s)' % (search_term, 'person')
+            tmp = search_term.split(':')
+            if len(tmp) > 1:
+                search_type, search_term = [tmp[0], tmp[1]]
+            else:
+                search_type = 'person'
+            search_dict = { 'person' : 'userid',
+                            'group'  : 'groupid' }
+            try:
+                search_id = search_dict[ search_type ]
+            except KeyError:
+                search_type, search_id = [ 'person', 'userid' ]
+            xpath = xpath_join(xpath, '%s/@%s = \'%s\'' % (search_type, search_id, search_term), inner=True)
+            role_filter = '%s (%s)' % (search_term, search_type)
         role_filter_xpath = xpath
         if opts.bugowner and not opts.maintainer:
-            xpath = xpath_join(xpath, 'person/@role=\'bugowner\'', op='and')
+            xpath = xpath_join(xpath, '%s/@role=\'bugowner\'' % search_type, op='and')
             role_filter = 'bugowner'
         elif not opts.bugowner and opts.maintainer:
-            xpath = xpath_join(xpath, 'person/@role=\'maintainer\'', op='and')
+            xpath = xpath_join(xpath, '%s/@role=\'maintainer\'' % search_type, op='and')
             role_filter = 'maintainer'
         if opts.limit_to_attribute:
             xpath = xpath_join(xpath, 'attribute/@name=\'%s\'' % opts.limit_to_attribute, op='and')
@@ -6981,6 +7057,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
     @cmdln.option('-X', '-m', '--method', default='GET', metavar='HTTP_METHOD',
                         help='specify HTTP method to use (GET|PUT|DELETE|POST)')
+    @cmdln.option('-e', '--edit', default=None, action='store_true',
+                        help='GET, edit and PUT the location')
     @cmdln.option('-d', '--data', default=None, metavar='STRING',
                         help='specify string data for e.g. POST')
     @cmdln.option('-T', '-f', '--file', default=None, metavar='FILE',
@@ -7001,6 +7079,7 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         Examples:
           osc api /source/home:user
           osc api -X PUT -T /etc/fstab source/home:user/test5/myfstab
+          osc api -e /configuration
 
         ${cmd_usage}
         ${cmd_option_list}
@@ -7028,10 +7107,17 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                          data=opts.data,
                          file=opts.file,
                          headers=opts.headers)
-
         out = r.read()
-        sys.stdout.write(out)
 
+        if opts.edit:
+            text = edit_text(out)
+            r = http_request("PUT",
+                         url,
+                         data=text,
+                         headers=opts.headers)
+            out = r.read()
+
+        sys.stdout.write(out)
 
 
     @cmdln.option('-b', '--bugowner-only', action='store_true',
