@@ -2,8 +2,8 @@
 
 Name:           osc
 Summary:        OpenSUSE Build Service Commander
-Version:        0.153.0
-Release:        1.5
+Version:        0.155.0
+Release:        tizen20161231
 Group:          Development/Tools/Other
 License:        GPL v2 or later
 Url:            http://www.gitorious.org/opensuse/osc
@@ -76,6 +76,8 @@ install -m 0755 dist/osc.complete %{buildroot}%{_prefix}/%{_lib}/osc/complete
 %doc AUTHORS README TODO NEWS
 %doc %_mandir/man1/osc.*
 %changelog
+* Sat Dec 31 2016 sk7.park@samsung.com
+- Change compat value to fix compile error on Ubuntu_16.10
 * Thu Sep 27 2012 suse-tux@gmx.de
 - update to 0.136.0:
   * prefer TLS v1.1 or v1.2 if available
